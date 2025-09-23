@@ -34,7 +34,10 @@ private:
 	ErrorCode validateUnknownCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateTouchCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateWcCommand(const std::string& command, const std::string& option, const std::string& argument);
-
+	ErrorCode validateTruncateCommand(const std::string& command, const std::string& option, const std::string& argument);
+	
+	//Helper method to validate file for open
+	bool validateFileForOpen(const std::string&, bool, bool, bool);
 };
 
 inline CommandFactory::CommandFactory() {
@@ -46,9 +49,6 @@ inline CommandFactory::~CommandFactory() {
 
 
 }
-
-
-
 
 #endif // !COMMANDFACTORY_H_
 

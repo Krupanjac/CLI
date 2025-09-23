@@ -1,6 +1,7 @@
 #include "CommandFactory.h"
 #include <iostream>
 #include <string>
+#include <fstream>
 
 
 
@@ -136,12 +137,19 @@ ErrorCode CommandFactory::validateTouchCommand(const std::string& command, const
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
-
 	else if (argument.front() == '"' || argument.back() == '"') {
 		handleCommand(SYNTAX_ERROR, command, option, argument);
 		return SYNTAX_ERROR;
 	}
-
+	if(!validateFileForOpen(argument,false,true,false)){
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
+	std::ifstream in(argument);
+	if(in.good()){
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
 	return SUCCESS;
 }
 
@@ -165,6 +173,46 @@ ErrorCode CommandFactory::validateWcCommand(const std::string& command, const st
 	}
 
 
+	return SUCCESS;
+}
+
+
+bool CommandFactory::validateFileForOpen(const std::string& path, bool requireExist, bool requireTxt, bool forWrite){
+	if(path.empty()) return false;
+	if(requireTxt){
+		if(path.size() < 4) return false;
+		if(path.substr(path.size()-4) != ".txt") return false;
+	}
+	if(requireExist){
+		std::ifstream in(path);
+		if(!in.good()) return false;
+		if(!in.is_open()) return false;
+	}
+	if(forWrite){
+		std::ofstream out(path, std::ios::app);
+		if(!out.good()) return false;
+		if(!out.is_open()) return false;
+	}
+	return true;
+}
+
+ErrorCode CommandFactory::validateTruncateCommand(const std::string& command, const std::string& option, const std::string& argument) {
+	if (!option.empty()) {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
+	else if (argument.empty()) {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
+	else if (argument.front() == '"' || argument.back() == '"') {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
+	if(!validateFileForOpen(argument,true,true,true)){
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
 	return SUCCESS;
 }
 
@@ -217,15 +265,13 @@ Command* CommandFactory::createCommand(const std::string& command, const std::st
 		}
 	}
 
-	else if (command == "fun") {
-		if (validateSimpleCommand(command, option, argument) == SUCCESS) {
-			return new FunCommand();
+	else if (command == "truncate") {
+		if (validateTruncateCommand(command, option, argument) == SUCCESS) {
+			return new TruncateCommand(argument);
 		}
 	}
-
     else {
 		handleCommand(UNKNOWN_COMMAND, command, option, argument);
     }
     return nullptr;
 }
-

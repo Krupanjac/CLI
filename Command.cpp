@@ -155,7 +155,6 @@ void HelpCommand::execute() {
 	std::cout << "date - prints the current date" << std::endl;
 	std::cout << "clear - clears the screen" << std::endl;
 	std::cout << "exit - exits the program" << std::endl;
-	std::cout << "fun - displays a spinning donut animation" << std::endl;
 	std::cout << "echo [argument] - prints the argument" << std::endl;
 	std::cout << "touch [argument] - creates a new file" << std::endl;
 	std::cout << "prompt [argument] - changes the prompt" << std::endl;
@@ -169,78 +168,14 @@ void HelpCommand::execute() {
 
 }
 
-
-//Fun class definition
-
-FunCommand::FunCommand() {
-	// execute() removed from constructor
-}
-
-void FunCommand::execute() {
-	int k;
-
-	using std::sin;
-	using std::cos;
-
-	float    A = 0,
-		/* float */ B = 0,
-		/* float */ i,
-		/* float */ j,
-		/* float */ z[1760];
-
-	char b[1760]; /* Allocates space to store to ascii art */
-
-	int t = 0;
-
-	int instanceTime = 200;
-
-	printf("\x1b[2J");
-
-	for (int ii = 0; ii < instanceTime; ii++) {
-		memset(b, 32, 1760);
-		memset(z, 0, 7040);
-
-		for (j = 0; 6.28 > j; j += 0.07)
-			for (i = 0; 6.28 > i; i += 0.02) { /* FOR-LOOP START*/
-
-
-				float    c = sin(i),
-					/* float */ d = cos(j),
-					/* float */ e = sin(A),
-					/* float */ f = sin(j),
-					/* float */ g = cos(A),
-					/* float */ h = d + 2,
-					/* float */ D = 1 / (c * h * e + f * g + 5),
-					/* float */ l = cos(i),
-					/* float */ m = cos(B),
-					/* float */ n = sin(B),
-					/* float */ t = c * h * g - f * e;
-
-				int x = 40 + 30 * D * (l * h * m - t * n),
-					/* int */ y = 12 + 15 * D * (l * h * n + t * m),
-					/* int */ o = x + 80 * y,
-					/* int */ N = 8 * ((f * e - c * d * g) * m - c * d * e - f * g - l * d * n);
-
-				if (22 > y && y > 0 && x > 0 && 80 > x && D > z[o]) {
-					z[o] = D;;;
-					b[o] = ".,-~:;=!*#$@"[N > 0 ? N : 0];
-				}
-
-			}
-
-		printf("\x1b[H");
-
-		for (k = 0; 1761 > k; k++)
-			putchar(k % 80 ? b[k] : 10);
-
-		A += 0.04;
-		B += 0.02;
-
-	} /* INFINITE LOOP END */
-
+/*Truncate class definition*/
+TruncateCommand::TruncateCommand(std::string filename) :file(filename) {
 
 }
 
-
-
+void TruncateCommand::execute() {
+	std::ofstream ofs;
+	ofs.open(file, std::ofstream::out | std::ofstream::trunc);
+	ofs.close();
+}
 

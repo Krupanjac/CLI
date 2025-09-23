@@ -32,9 +32,6 @@ protected:
 	PSIGN prompt;
 
 
-
-	//nputStream* 
-
 };
 
 //Prompt command class for user to define beggining of a new command
@@ -152,17 +149,16 @@ public:
 	void execute() override;
 };
 
-class FunCommand : public Command {
+class TruncateCommand : public Command {
 public:
+	//Default constructor for Truncate
+	TruncateCommand(std::string);
 
-	//Default constructor for Fun
-	FunCommand();
-
-	//Exec method for Fun
+	//Exec method for Truncate
 	void execute() override;
+private:
+	std::string file;
 };
-
-
 
 
 #endif // !COMMAND_H_
