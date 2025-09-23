@@ -5,7 +5,7 @@
 #include "Command.h"
 
 //Command class definition
-Command::Command(std::string& comm, std::string& opt, std::string& arg, PSIGN& p) : command(comm), option(opt), argument(arg) , prompt(p){
+Command::Command(std::string& comm, std::string& opt, std::string& arg, PSIGN& p) : command(comm), option(opt), argument(arg), prompt(p) {
 
 }
 
@@ -18,7 +18,7 @@ Command::Command() : command(""), option(""), argument(""), prompt('$') {
 
 PromptCommand::PromptCommand(PSIGN& p) {
 	prompt = p;
-	execute();
+	// execute() removed from constructor (now called explicitly)
 }
 
 void PromptCommand::execute() {
@@ -28,12 +28,12 @@ void PromptCommand::execute() {
 
 //Echo class definition
 
-EchoCommand::EchoCommand(std::string arg) : echoArgument(arg){
-	execute();
+EchoCommand::EchoCommand(std::string arg) : echoArgument(arg) {
+	// execute() removed from constructor (now called explicitly)
 }
 
 
-void EchoCommand::execute(){
+void EchoCommand::execute() {
 
 	if (echoArgument.front() != '"')
 		std::cout << echoArgument << std::endl;
@@ -45,7 +45,7 @@ void EchoCommand::execute(){
 //Time class definition
 
 TimeCommand::TimeCommand() {
-	execute();
+	// execute() removed from constructor
 }
 
 void TimeCommand::execute() {
@@ -55,7 +55,7 @@ void TimeCommand::execute() {
 //Date class definition
 
 DateCommand::DateCommand() {
-	execute();
+	// execute() removed from constructor
 }
 
 void DateCommand::execute() {
@@ -65,7 +65,7 @@ void DateCommand::execute() {
 //Clear class definition
 
 ClearCommand::ClearCommand() {
-	execute();
+	// execute() removed from constructor
 }
 
 void ClearCommand::execute() {
@@ -75,7 +75,7 @@ void ClearCommand::execute() {
 //Exit class definition
 
 ExitCommand::ExitCommand() {
-	execute();
+	// execute() removed from constructor
 }
 
 void ExitCommand::execute() {
@@ -85,48 +85,48 @@ void ExitCommand::execute() {
 //Touch class definition
 
 TouchCommand::TouchCommand(std::string arg) : file(arg) {
-	execute();
+	// execute() removed from constructor
 }
 
 void TouchCommand::execute() {
-    try {
-        // Check if the file exists
-        std::ifstream infile(file);
-        if (infile) {  // File exists
+	try {
+		// Check if the file exists
+		std::ifstream infile(file);
+		if (infile) {  // File exists
 			throw std::runtime_error("7 - File '" + file + "' already exists.");
-        }
+		}
 
-        // Try to create the file
-        std::ofstream outfile(file);
-        if (!outfile) {
+		// Try to create the file
+		std::ofstream outfile(file);
+		if (!outfile) {
 			throw std::runtime_error("8 - Could not create file '" + file + "'");
-        }
-    }
-    catch (const std::runtime_error& e) {
+		}
+	}
+	catch (const std::runtime_error& e) {
 
-        std::cerr << "Error code " << e.what() << std::endl;
+		std::cerr << "Error code " << e.what() << std::endl;
 		return;
-    }
+	}
 }
 
 
 //Wc class definition
 
 WcCommand::WcCommand(std::string arg, std::string opt) : argument(arg), option(opt[1]) {
-	execute();
+	// execute() removed from constructor
 }
 
 void WcCommand::execute() {
-\
+	\
 		if (option == 'w') countWords();
-		
+
 		else countChars();
-		
+
 }
 
 void WcCommand::countWords() {
 	int count = 1;
-	
+
 	for (int i = 0; i < argument.length(); i++) {
 		if (argument[i] == ' ') {
 			count++;
@@ -137,7 +137,7 @@ void WcCommand::countWords() {
 }
 
 void WcCommand::countChars() {
-	if(argument[0] != '"')
+	if (argument[0] != '"')
 		std::cout << "Character count: " << argument.length() << std::endl;
 	else std::cout << "Character count: " << argument.length() - 2 << std::endl;
 }
@@ -146,7 +146,7 @@ void WcCommand::countChars() {
 //Help class definition
 
 HelpCommand::HelpCommand() {
-	execute();
+	// execute() removed from constructor
 }
 
 void HelpCommand::execute() {
@@ -162,8 +162,8 @@ void HelpCommand::execute() {
 	std::cout << "wc [-opt] [argument] - prints the word or character count" << std::endl;
 
 	//argument explanation
-	std::cout<<std::endl << "[argument] - a single word, a quoted string or filename" << std::endl;
-	
+	std::cout << std::endl << "[argument] - a single word, a quoted string or filename" << std::endl;
+
 	//option explanation
 	std::cout << "[-opt] - a single character option." << std::endl;
 
@@ -173,7 +173,7 @@ void HelpCommand::execute() {
 //Fun class definition
 
 FunCommand::FunCommand() {
-	execute();
+	// execute() removed from constructor
 }
 
 void FunCommand::execute() {
@@ -186,7 +186,7 @@ void FunCommand::execute() {
 		/* float */ B = 0,
 		/* float */ i,
 		/* float */ j,
-		/* float */ z[1760]; 
+		/* float */ z[1760];
 
 	char b[1760]; /* Allocates space to store to ascii art */
 
@@ -226,7 +226,7 @@ void FunCommand::execute() {
 					b[o] = ".,-~:;=!*#$@"[N > 0 ? N : 0];
 				}
 
-			} 
+			}
 
 		printf("\x1b[H");
 
@@ -240,6 +240,7 @@ void FunCommand::execute() {
 
 
 }
+
 
 
 

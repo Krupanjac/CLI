@@ -4,266 +4,169 @@
 
 #include "Stream.h"
 
-//Stream class
+// ---------------- Stream (manager) ----------------
 Stream* Stream::instance() {
-	static Stream instance;
-	return &instance;
+    static Stream s;
+    return &s;
 }
 
-void Stream::insert(InputStream *ei) {
-	if (ei == nullptr) return;
+Stream::Stream() : first(nullptr) {}
+Stream::~Stream() { clear(); }
 
-	InputStream* nxt = first;
-	InputStream* prv = nullptr;
-	
-	while (nxt != nullptr) {
-		prv = nxt;
-		nxt = nxt->getNext();
-	}
-
-	if (prv) prv->setNext(ei);
-	else first = ei;
-
+void Stream::insert(InputStream* node) {
+    if (!node) return;
+    if (!first) { first = node; return; }
+    InputStream* cur = first;
+    while (cur->getNext()) cur = cur->getNext();
+    cur->setNext(node);
 }
 
+void Stream::setFirst(InputStream* f) { first = f; }
+InputStream* Stream::getFirst() const { return first; }
 
+void Stream::clear() {
+    InputStream* cur = first;
+    while (cur) {
+        InputStream* nxt = cur->getNext();
+        delete cur;
+        cur = nxt;
+    }
+    first = nullptr;
+    pipeline.clear();
+}
 
-// Split pipeline by | separator and store in pipeline in reverse order
-void Stream::split(std::string line) {
-	std::string temp;
+void Stream::split(const std::string& line) {
+    pipeline.clear();
+    std::string segment;
+    for (char c : line) {
+        if (c == '|') {
+            if (!segment.empty()) { pipeline.push_back(segment); segment.clear(); }
+        } else {
+            segment += c;
+        }
+    }
+    if (!segment.empty()) pipeline.push_back(segment);
+}
 
-	// Traverse the string to split by '|'
-	for (char c : line) {
-		if (c == '|') {
-			if (!temp.empty()) {
-				pipeline.insert(pipeline.begin(), temp);
-				temp.clear();
-			}
-		}
-		else {
-			temp += c; 
-		}
-	}
-
-	// Push the last command to the front if temp is not empty
-	if (!temp.empty()) {
-		pipeline.insert(pipeline.begin(), temp);
-	}
+static bool isTxtFileCandidate(const std::string& arg) {
+    return arg.size() >= 4 && arg.front() != '"' && arg.back() != '"' && arg.substr(arg.size() - 4) == ".txt";
 }
 
 std::istream& operator>>(std::istream& in, Stream& stream) {
-	std::string lineO;
+    // Reset previous parsed list
+    stream.clear();
 
-	std::getline(in, lineO);
+    std::string line;
+    if (!std::getline(in, line)) return in;
 
-	if (lineO.empty()) {
-		std::cerr << "\nError code 10 - Empty input" << std::endl;
-		lineO = '?';
-	}
+    if (line.empty()) {
+        std::cerr << "\nError code 10 - Empty input" << std::endl;
+        return in;
+    }
+    if (line.size() > MAX_SIZE) {
+        std::cerr << "\nError code 11 - Input size exceeds maximum size" << std::endl;
+        return in;
+    }
 
-	else if (lineO.length() > MAX_SIZE) {
-		std::cerr << "\nError code 11 - Input size exceeds maximum size" << std::endl;
-		lineO = '?';
-	}
+    stream.split(line);
 
-	stream.split(lineO);
+    for (auto& raw : stream.pipeline) {
+        InputStream* node = new InputStream(raw);
 
-	while(!stream.pipeline.empty()) {
-		//Get the last element of the pipeline and remove it after
-		std::string line = stream.pipeline.back();
-		stream.pipeline.pop_back();
+        // Multiline acquisition for echo / wc with missing argument
+        if ((node->getCommand() == "echo" || node->getCommand() == "wc") && node->getArgument().empty()) {
+            std::string acc;
+            std::string extra;
+            while (std::getline(in, extra)) {
+                if (extra.empty()) { // terminate multiline
+                    node->setArgument("\"" + acc + "\"");
+                    break;
+                }
+                if (!acc.empty()) acc += '\n';
+                acc += extra;
+            }
+        }
+        else if ((node->getCommand() == "echo" || node->getCommand() == "wc") && isTxtFileCandidate(node->getArgument())) {
+            // Replace with FileStream that reads file content
+            FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
+            delete node;
+            node = fnode;
+        }
 
-		//Create InputStream object
-			InputStream* first = new InputStream(line);
-			std::string arg = first->getArgument();
+        stream.insert(node);
+    }
 
-			//case 1: if argument is not empty and is quoted or a txt file
-			if (arg.length() > 1) {
-				bool isQuoted = arg.front() == '"' && arg.back() == '"';
-				bool isTxtFile = arg.length() >= 4 && arg.substr(arg.length() - 4) == ".txt";
-
-				if (isQuoted || isTxtFile) {
-					if (isTxtFile && (arg.front() != '"' && arg.back() != '"')) {
-						std::string command = first->getCommand();
-						std::string option = first->getOption();
-						delete first;
-						first = nullptr;
-						first = new FileStream(command, option, arg);
-					}
-					continue;
-				}
-
-	
-
-				continue;
-			}
-			//case 2: if argument is empty and command is multiline
-			else if (first->getCommand() == "echo" || first->getCommand() == "wc") {
-				//Fetch from more lines
-				if (first->getArgument().empty()) {
-					while (std::getline(in, line)) {
-						if (line == "") {
-							arg += '"';
-							first->setArgument(arg);
-							break;
-						}
-						if (arg.length())
-							arg += " " + line;
-
-						else arg += '"' + line;
-					}
-					continue;
-				}
-				//first->setArgument(arg+"<");
-				continue;
-
-			}
-			else continue;
-
-		
-	}
-
-	return in;
+    return in;
 }
 
-void Stream::clear() {
-	InputStream* current = first;
-	while (current) {
-		InputStream* next = current->getNext();
-		delete current;
-		current = next;
-	}
-	first = nullptr;
+// ---------------- InputStream (node) ----------------
+InputStream::InputStream(const std::string& line) { parse(line); }
+
+void InputStream::appendArgumentLine(const std::string& line) {
+    if (!argument.empty()) argument += '\n';
+    argument += line;
 }
 
-Stream::~Stream() {
-	clear();
+std::string InputStream::nextToken(const std::string& line, size_t& i) {
+    while (i < line.size() && std::isspace(static_cast<unsigned char>(line[i]))) ++i;
+    if (i >= line.size()) return {};
+
+    std::string tok;
+    if (line[i] == '"') {
+        tok += line[i++];
+        while (i < line.size()) {
+            tok += line[i];
+            if (line[i] == '"') { ++i; break; }
+            ++i;
+        }
+    } else {
+        while (i < line.size() && !std::isspace(static_cast<unsigned char>(line[i]))) {
+            tok += line[i++];
+        }
+    }
+    while (i < line.size() && std::isspace(static_cast<unsigned char>(line[i]))) ++i;
+    return tok;
 }
 
+void InputStream::parse(const std::string& line) {
+    size_t i = 0;
+    command = nextToken(line, i);
+    if (command.empty()) return;
 
-// InputStream Class
-// Constructor to initialize input
-InputStream::InputStream(std::string line) : next(nullptr) {
-	read(line);
-	Stream::instance()->insert(this);
+    std::string second = nextToken(line, i);
+    if (!second.empty() && second[0] == '-') {
+        option = second;
+        argument = nextToken(line, i);
+    } else {
+        argument = second;
+    }
 }
 
-// Default constructor
-InputStream::InputStream() : next(nullptr) {}
-
-std::string InputStream::find(const std::string& line, int& i) {
-	std::string temp;
-	int length = line.length();
-
-	// Skip leading whitespaces
-	while (i < length && std::isspace(line[i])) {
-		i++;
-	}
-
-	// Check if the current token starts with a quote
-	if (i < length && line[i] == '"') {
-		int j = 0;
-		while (i < length && j!=2) {
-			if (line[0] == '"') j++;
-			temp += line[i++];
-		}
-	}
-
-	else {
-		// Handle unquoted argument
-		while (i < length && !std::isspace(line[i])) {
-			temp += line[i++];
-		}
-	}
-
-	// Skip trailing spaces after processing the token
-	while (i < length && std::isspace(line[i])) {
-		i++;
-	}
-
-	return temp;
-}
-
-std::string InputStream::removeWhiteSpaceTrail(std::string& str) {
-
-	int i = str.length()-1;
-	while (std::isspace(str[i])) {
-		--i;
-	}
-
-	str = str.substr(0, i+1);
-
-	return str;
-}
-
-
-void InputStream::read(const std::string& line) {
-	int i = 0;  // Position in the input line (shifting string)
-	//Fetch command
-
-	setCommand(find(line, i)); 
-
-	std::string temp = find(line, i);
-	//Fetch if option exists
-	if (!temp.empty() && temp[0] == '-') {
-		setOption(temp);  
-		temp = find(line, i); 
-	}
-
-	if (!temp.empty())
-	temp = removeWhiteSpaceTrail(temp);
-
-	setArgument(temp);  // Set argument if present
-
-
-}
-
-
-
-
-//FileStream class
-
-FileStream::FileStream(const std::string& comm, const std::string& opt, const std::string& file) : InputStream() {
-	setCommand(comm);
-	setOption(opt);
-	if (command == "echo" || command == "wc")
-	readFromFile(file);
-	else
-		setArgument(file);
-
-
-}
-
-
-void FileStream::read(const std::string& line) {
-	std::string arg = getArgument();
-	arg += line + "\n";
-	setArgument(arg);
-
+// ---------------- FileStream ----------------
+FileStream::FileStream(const std::string& command,
+                       const std::string& option,
+                       const std::string& filePath) {
+    setCommand(command);
+    setOption(option);
+    readFromFile(filePath);
 }
 
 void FileStream::readFromFile(const std::string& filePath) {
-	try {
-		std::ifstream file(filePath);
-		if (!file.is_open()) {
-			throw std::runtime_error("\nError code 5 - Could not open file: " + filePath);
-		}
-
-		std::string line;
-		while (std::getline(file, line)) {
-			read(line);
-		}
-		file.close();
-
-		//add quotes to the argument
-		if (getArgument().front() != '"' && getArgument().back() != '"') {
-			std::string arg = getArgument();
-			arg = '"' + arg + '"';
-			setArgument(arg);
-		}
-
-	}
-	catch (const std::exception& e) {
-		std::cerr << "\nError code 6 - Error reading from file" << e.what() << std::endl;
-	}
+    try {
+        std::ifstream f(filePath);
+        if (!f.is_open()) {
+            throw std::runtime_error("\nError code 5 - Could not open file: " + filePath);
+        }
+        std::string line;
+        std::string acc;
+        while (std::getline(f, line)) {
+            if (!acc.empty()) acc += '\n';
+            acc += line;
+        }
+        f.close();
+        setArgument("\"" + acc + "\"");
+    }
+    catch (const std::exception& e) {
+        std::cerr << "\nError code 6 - Error reading from file " << e.what() << std::endl;
+    }
 }

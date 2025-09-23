@@ -1,186 +1,79 @@
 #ifndef STREAM_H_
 #define STREAM_H_
 #define MAX_SIZE 512
+
 #include <string>
 #include <vector>
+#include <istream>
 
-class InputStream;
+class InputStream; // forward declaration
 
-//Class for handling DATA from Streams
+// Manager for parsed input segments (singleton)
 class Stream {
-
 public:
+    static Stream* instance();
 
-	//Singleton DP. Static. Returns singleton instance of this Class.
-	static Stream* instance();
+    void insert(InputStream* node);          // append node to list
+    void split(const std::string& line);     // split raw line into pipeline segments
 
-	//Inserts a new InputStream to be utilized.
-	void insert(InputStream*);
-	
-	//virtual ~Stream();
+    void setFirst(InputStream* first);
+    InputStream* getFirst() const;
 
-	//Handle I Stream for Args
-	virtual void setArgument(std::string);
-	
-	//Grab Args
-	virtual std::string getArgument() const;
+    void clear();                            // delete all nodes & reset
 
-
-	//Handle I stream for Options
-	virtual void setOption(std::string);
-
-	//Grab Options
-	virtual std::string getOption() const;
-
-	//Handle I Stream for Commands
-	virtual void setCommand(std::string);
-	
-	//Grab Commands
-	virtual std::string getCommand() const;
-
-	//Set first InputStream
-	void setFirst(InputStream* first);
-
-	//Grab first InputStream
-	InputStream* getFirst() const;
-
-	//clear singletron at end of lifetime
-	void clear();
-
-	//Split pipeline
-	virtual void split(std::string);
-
-
-	//Overloads std::input for processing multiple lines
-	friend std::istream& operator>>(std::istream& in, Stream& stream);
-
-protected:
-	std::string command;
-	std::string option;
-	std::string argument;
-
-
-	//Pipeline members (vector)
-	std::vector<std::string> pipeline;
-
-	Stream();
-	~Stream();
+    friend std::istream& operator>>(std::istream& in, Stream& stream);
 
 private:
-	
-	//~Stream();
-	InputStream* first;
-	
+    Stream();
+    ~Stream();
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
+
+    std::vector<std::string> pipeline;       // temporary storage for pipeline segments
+    InputStream* first;                      // head of linked list
 };
 
-inline Stream::Stream() : first(nullptr) {}
-
-
-
-inline void Stream::setArgument(std::string arg) {
-	argument = arg;
-}
-
-inline void Stream::setCommand(std::string comm) {
-	command = comm;
-}
-
-inline void Stream::setOption(std::string opt) {
-	option = opt;
-}
-
-inline std::string Stream::getArgument() const {
-	return argument;
-}
-
-inline std::string Stream::getCommand() const {
-	return command;
-}
-
-inline std::string Stream::getOption() const {
-	return option;
-}
-
-inline void Stream::setFirst(InputStream* first) {
-	this->first = first;
-}
-
-inline InputStream* Stream::getFirst() const {
-	return first;
-}
-
-
-//I Stream class (keyboard)
-class InputStream : public Stream {
+// Single parsed segment (command [option] [argument])
+class InputStream {
 public:
-	//default constructor to initialize input
-	InputStream();
+    explicit InputStream(const std::string& line); // parse and populate fields
+    virtual ~InputStream() = default;
 
-	InputStream(std::string);
-	//~InputStream();
+    InputStream* getNext() const { return next; }
+    void setNext(InputStream* n) { next = n; }
 
-	//Return next Stream input (if exists)
-	InputStream* getNext();
+    const std::string& getCommand()  const { return command; }
+    const std::string& getOption()   const { return option; }
+    const std::string& getArgument() const { return argument; }
 
-	//Return last Stream input
-	InputStream* getLast();
-
-	//Set next chain in input
-	void setNext(InputStream*);
-
-	//helper function to remove whitespace in end of argument
-	std::string removeWhiteSpaceTrail(std::string&);
+    void setArgument(const std::string& a) { argument = a; }
+    void setCommand(const std::string& c) { command = c; }
+    void setOption(const std::string& o) { option = o; }
 
 protected:
+    InputStream() = default; // for derived classes
 
-	//Read from command line
-	virtual void read(const std::string&);
+    void appendArgumentLine(const std::string& line); // used by multiline and file reading
 
+    void parse(const std::string& line);              // tokenize input line
+    std::string nextToken(const std::string& line, size_t& i); // helper
 
-
+    std::string command;
+    std::string option;
+    std::string argument;
 
 private:
-	//Handle line string from read
-	std::string find(const std::string&, int&);
-
-
-	InputStream* next;
-
-
-
+    InputStream* next = nullptr;
 };
 
-inline InputStream* InputStream::getNext() {
-	return this->next;
-}
-
-inline void InputStream::setNext(InputStream* nxt) {
-	next = nxt;
-}
-
-inline InputStream* InputStream::getLast() {
-	InputStream* tek = next;
-	while (tek->next) tek = tek->next;
-	return tek;
-}
-
-//F stream class (Files)
+// Specialized segment that loads argument from a file
 class FileStream : public InputStream {
 public:
-	//Constructor to copy data + handle File
-	FileStream(const std::string&, const std::string&,const std::string& filePath);
-	//Try read from file
-	void readFromFile(const std::string& filePath);
+    FileStream(const std::string& command,
+               const std::string& option,
+               const std::string& filePath);
 
-protected:
-	//Handle argument passed from File.
-	void read(const std::string&) override;
-
-
-	
+    void readFromFile(const std::string& filePath);
 };
 
-
-
-
-#endif // !STREAM_H_
+#endif // STREAM_H_

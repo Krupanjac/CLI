@@ -33,7 +33,7 @@ protected:
 
 
 
-//nputStream* 
+	//nputStream* 
 
 };
 
@@ -60,7 +60,7 @@ public:
 	//Default constructor for Echo
 	EchoCommand(std::string);
 
-	
+
 	void execute() override;
 
 private:
@@ -69,7 +69,7 @@ private:
 
 class TimeCommand : public Command {
 public:
-	
+
 	//Default constructor for Time
 	TimeCommand();
 
@@ -118,7 +118,7 @@ public:
 
 private:
 	std::string file;
-	
+
 
 };
 
