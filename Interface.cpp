@@ -1,5 +1,4 @@
 #include "Interface.h"
-#include <iostream>
 
 //Constructor for Interface
 Interface::Interface() : parser(nullptr), command(nullptr) {
