@@ -26,7 +26,7 @@ void PromptCommand::execute() {
 }
 
 
-//Echo class definition
+///Echo class definition
 
 EchoCommand::EchoCommand(std::string arg) : echoArgument(arg) {
 	// execute() removed from constructor (now called explicitly)
@@ -112,34 +112,37 @@ void TouchCommand::execute() {
 
 //Wc class definition
 
-WcCommand::WcCommand(std::string arg, std::string opt) : argument(arg), option(opt[1]) {
+WcCommand::WcCommand(std::string arg, std::string opt) : argument(arg), option(opt.empty() ? ' ' : opt[1]) {
 	// execute() removed from constructor
 }
 
 void WcCommand::execute() {
-	\
-		if (option == 'w') countWords();
-
-		else countChars();
-
+	if (option == 'w') countWords();
+	else countChars();
 }
 
 void WcCommand::countWords() {
-	int count = 1;
-
-	for (int i = 0; i < argument.length(); i++) {
-		if (argument[i] == ' ') {
-			count++;
+	int count = 0;
+	bool inWord = false;
+	std::string data = argument;
+	if (!data.empty() && data.front() == '"' && data.back() == '"') {
+		data = data.substr(1, data.size()-2);
+	}
+	for (char c : data) {
+		if (std::isspace(static_cast<unsigned char>(c))) {
+			if (inWord) { ++count; inWord = false; }
+		} else {
+			inWord = true;
 		}
 	}
-
-	std::cout << "Word count: " << count << std::endl;
+	if (inWord) ++count;
+	std::cout << count << std::endl;
 }
 
 void WcCommand::countChars() {
-	if (argument[0] != '"')
-		std::cout << "Character count: " << argument.length() << std::endl;
-	else std::cout << "Character count: " << argument.length() - 2 << std::endl;
+	std::string data = argument;
+	if (!data.empty() && data.front() == '"' && data.back() == '"') data = data.substr(1, data.length() - 2);
+	std::cout << data.length() << std::endl;
 }
 
 
@@ -159,11 +162,10 @@ void HelpCommand::execute() {
 	std::cout << "touch [argument] - creates a new file" << std::endl;
 	std::cout << "prompt [argument] - changes the prompt" << std::endl;
 	std::cout << "wc [-opt] [argument] - prints the word or character count" << std::endl;
+	std::cout << "truncate [argument] - truncates the file to zero length" << std::endl;
+	std::cout << "rm [argument] - deletes the file" << std::endl;
 
-	//argument explanation
 	std::cout << std::endl << "[argument] - a single word, a quoted string or filename" << std::endl;
-
-	//option explanation
 	std::cout << "[-opt] - a single character option." << std::endl;
 
 }
@@ -179,3 +181,17 @@ void TruncateCommand::execute() {
 	ofs.close();
 }
 
+
+//RmCommand class definition
+RmCommand::RmCommand(std::string filename) : file(filename) {
+
+}
+
+void RmCommand::execute() {
+	if (std::remove(file.c_str()) != 0) {
+		std::cerr << "Error deleting file: " << file << std::endl;
+	}
+	else {
+		std::cout<< file << " deleted successfully!" << std::endl;
+	}
+}

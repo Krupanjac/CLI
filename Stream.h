@@ -50,6 +50,18 @@ public:
     void setCommand(const std::string& c) { command = c; }
     void setOption(const std::string& o) { option = o; }
 
+    // Redirection accessors
+    const std::string& getInRedirect() const { return inRedirect; }
+    const std::string& getOutRedirect() const { return outRedirect; }
+    bool isAppendOut() const { return appendOut; }
+
+    void setInRedirect(const std::string& in) { inRedirect = in; }
+    void setOutRedirect(const std::string& out, bool append) { outRedirect = out; appendOut = append; }
+
+    // Track whether the user provided an explicit argument token
+    bool hasExplicitArgument() const { return explicitArgument; }
+    void setHasExplicitArgument(bool v) { explicitArgument = v; }
+
 protected:
     InputStream() = default; // for derived classes
 
@@ -64,6 +76,10 @@ protected:
 
 private:
     InputStream* next = nullptr;
+    std::string inRedirect;
+    std::string outRedirect;
+    bool appendOut = false;
+    bool explicitArgument = false;
 };
 
 // Specialized segment that loads argument from a file

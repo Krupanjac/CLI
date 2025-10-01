@@ -25,6 +25,12 @@ public:
 	//Sends argument to CLI
 	std::string parseArgument();
 
+	// Redirection accessors
+	std::string parseInRedirect();
+	std::string parseOutRedirect();
+	bool parseAppendOut();
+	bool parseHasExplicitArgument();
+
 
 private:
 	Stream* stream;
@@ -45,6 +51,21 @@ inline std::string Parser::parseArgument() {
 	return stream->getFirst()->getArgument();
 }
 
+inline std::string Parser::parseInRedirect() {
+	return stream->getFirst()->getInRedirect();
+}
+
+inline std::string Parser::parseOutRedirect() {
+	return stream->getFirst()->getOutRedirect();
+}
+
+inline bool Parser::parseAppendOut() {
+	return stream->getFirst()->isAppendOut();
+}
+
+inline bool Parser::parseHasExplicitArgument() {
+	return stream->getFirst()->hasExplicitArgument();
+}
 
 
 #endif // !_PARSER_H_

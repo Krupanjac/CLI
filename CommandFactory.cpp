@@ -8,7 +8,6 @@
 
 
 
-
 void CommandFactory::printErrorContext(const std::string& command, const std::string& option, const std::string& argument, const std::string& errorMessage, ErrorCode code) {
 	char uChar = '~';
 	int size = 0;
@@ -98,17 +97,19 @@ ErrorCode CommandFactory::validateEchoCommand(const std::string& command, const 
 		return INVALID_OPTION;
 	}
 
-
-	else if (argument.empty() ||
-		((argument.back() == '"') && (argument.front() != '"')) ||
-		((argument.back() != '"') && (argument.front() == '"')) ||
-		((argument.back() != '"') && (argument.front() != '"')))
-	{
-		handleCommand(SYNTAX_ERROR, command, option, argument);
-		return SYNTAX_ERROR;
+	if (argument.empty()) {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
 	}
 
-	return SUCCESS;
+	// Only accept a properly quoted string as the final validated argument.
+	// If a .txt filename was provided, the parser replaces it with quoted file contents before validation.
+	bool quoted = argument.size() >= 2 && argument.front() == '"' && argument.back() == '"';
+	if (quoted) return SUCCESS;
+
+	// Any other unquoted token (e.g., words like asdsaas, symbols like >, >>, <, <<) is invalid for echo
+	handleCommand(INVALID_ARGUMENT, command, option, argument);
+	return INVALID_ARGUMENT;
 }
 
 ErrorCode CommandFactory::validateSimpleCommand(const std::string& command, const std::string& option, const std::string& argument) {
@@ -145,34 +146,67 @@ ErrorCode CommandFactory::validateTouchCommand(const std::string& command, const
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
-	std::ifstream in(argument);
-	if(in.good()){
+	// Do not pre-fail when the file already exists; let TouchCommand produce the proper error code (7)
+	return SUCCESS;
+}
+
+ErrorCode CommandFactory::validateWcCommand(const std::string& command, const std::string& option, const std::string& argument) {
+
+	// option validation
+	if ((option.length() > 1 && option[0] != '-') ||
+		(option.length() > 1 && option[1] != 'c' && option[1] != 'w')) {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
+
+	// argument validation: wc expects its final evaluated argument to be quoted text
+	// If a .txt filename was provided or input was redirected, the parser replaces it with quoted text.
+	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
 	return SUCCESS;
 }
 
-ErrorCode CommandFactory::validateWcCommand(const std::string& command, const std::string& option, const std::string& argument) {
 
-
-	if (option.length() > 1 && option[0] != '-' ||
-		(option.length() > 1 && option[1] != 'c' && option[1] != 'w')) {
+ErrorCode CommandFactory::validateTruncateCommand(const std::string& command, const std::string& option, const std::string& argument) {
+	if (!option.empty()) {
 		handleCommand(INVALID_OPTION, command, option, argument);
 		return INVALID_OPTION;
-		}
-	
-	else if (argument.empty() ||
-		(argument.length() <2) ||
-		(argument.front() != '"' && argument.back() == '"') ||
-		(argument.front() == '"' && argument.back() != '"') ||
-		(argument.front() != '"' && argument.back() != '"'))
-	{
+	}
+	else if (argument.empty()) {
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
+	else if (argument.front() == '"' || argument.back() == '"') {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
+	if (!validateFileForOpen(argument, true, true, true)) {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
+	return SUCCESS;
+}
 
 
+ErrorCode CommandFactory::validateRmCommand(const std::string& command, const std::string& option, const std::string& argument) {
+	if (!option.empty()) {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
+	else if (argument.empty()) {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
+	else if (argument.front() == '"' || argument.back() == '"') {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
+	if (!validateFileForOpen(argument, true, true, false)) {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
 	return SUCCESS;
 }
 
@@ -196,25 +230,7 @@ bool CommandFactory::validateFileForOpen(const std::string& path, bool requireEx
 	return true;
 }
 
-ErrorCode CommandFactory::validateTruncateCommand(const std::string& command, const std::string& option, const std::string& argument) {
-	if (!option.empty()) {
-		handleCommand(INVALID_OPTION, command, option, argument);
-		return INVALID_OPTION;
-	}
-	else if (argument.empty()) {
-		handleCommand(INVALID_ARGUMENT, command, option, argument);
-		return INVALID_ARGUMENT;
-	}
-	else if (argument.front() == '"' || argument.back() == '"') {
-		handleCommand(SYNTAX_ERROR, command, option, argument);
-		return SYNTAX_ERROR;
-	}
-	if(!validateFileForOpen(argument,true,true,true)){
-		handleCommand(INVALID_ARGUMENT, command, option, argument);
-		return INVALID_ARGUMENT;
-	}
-	return SUCCESS;
-}
+
 
 
 Command* CommandFactory::createCommand(const std::string& command, const std::string& option, const std::string& argument, PSIGN& prompt) {
@@ -268,6 +284,11 @@ Command* CommandFactory::createCommand(const std::string& command, const std::st
 	else if (command == "truncate") {
 		if (validateTruncateCommand(command, option, argument) == SUCCESS) {
 			return new TruncateCommand(argument);
+		}
+	}
+	else if (command == "rm") {
+		if (validateRmCommand(command, option, argument) == SUCCESS) {
+			return new RmCommand(argument);
 		}
 	}
     else {

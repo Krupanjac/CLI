@@ -35,7 +35,9 @@ private:
 	ErrorCode validateTouchCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateWcCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateTruncateCommand(const std::string& command, const std::string& option, const std::string& argument);
-	
+	ErrorCode validateRmCommand(const std::string& command, const std::string& option, const std::string& argument);
+
+
 	//Helper method to validate file for open
 	bool validateFileForOpen(const std::string&, bool, bool, bool);
 };

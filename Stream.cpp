@@ -1,6 +1,8 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <cctype>
+#include <stdexcept>
 
 #include "Stream.h"
 
@@ -52,6 +54,65 @@ static bool isTxtFileCandidate(const std::string& arg) {
     return arg.size() >= 4 && arg.front() != '"' && arg.back() != '"' && arg.substr(arg.size() - 4) == ".txt";
 }
 
+static void trimRight(std::string& s) {
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
+}
+static void trimLeft(std::string& s) {
+    size_t i = 0; while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i; s.erase(0, i);
+}
+static void trim(std::string& s){ trimRight(s); trimLeft(s);}    
+
+// Extract trailing redirections and support forms without spaces like "<file" or ">>file"
+static void parseRedirections(std::string& raw, std::string& inFile, std::string& outFile, bool& appendOut) {
+    const char GT = '>';
+    const char LT = '<';
+
+    inFile.clear(); outFile.clear(); appendOut = false;
+    // Allow both in any order; consume from the end repeatedly
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        trimRight(raw);
+        if (raw.empty()) break;
+
+        int j = static_cast<int>(raw.size()) - 1;
+        // skip trailing whitespace
+        while (j >= 0 && std::isspace(static_cast<unsigned char>(raw[j]))) --j;
+        if (j < 0) break;
+
+        // move back to start of filename token; stop at whitespace or a redirection operator
+        int end = j;
+        while (j >= 0 && !std::isspace(static_cast<unsigned char>(raw[j])) && raw[j] != LT && raw[j] != GT) --j;
+        int startFile = j + 1;
+        std::string file = raw.substr(startFile, end - startFile + 1);
+
+        // skip whitespace before operator (if any)
+        while (j >= 0 && std::isspace(static_cast<unsigned char>(raw[j]))) --j;
+        if (j < 0) break;
+
+        char op = raw[j];
+        if (op == LT) {
+            // consume '<file' or '< file'
+            --j; changed = true; inFile = file;
+            raw.erase(j + 1); // remove from '<' to end
+            continue;
+        }
+        if (op == GT) {
+            int opEnd = j; // position of rightmost '>'
+            --j;
+            bool dbl = (j >= 0 && raw[j] == GT);
+            int opStart = dbl ? j : opEnd;
+            if (dbl) --j;
+            changed = true; outFile = file; appendOut = dbl;
+            raw.erase(opStart); // remove from first '>' to end
+            continue;
+        }
+        // not a redirection tail
+        break;
+    }
+    trimRight(raw);
+}
+
 std::istream& operator>>(std::istream& in, Stream& stream) {
     // Reset previous parsed list
     stream.clear();
@@ -70,25 +131,51 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
 
     stream.split(line);
 
-    for (auto& raw : stream.pipeline) {
-        InputStream* node = new InputStream(raw);
+    for (auto& rawSeg : stream.pipeline) {
+        std::string raw = rawSeg;
+        std::string inFile, outFile; bool appendOut = false;
+        parseRedirections(raw, inFile, outFile, appendOut);
 
-        // Multiline acquisition for echo / wc with missing argument
-        if ((node->getCommand() == "echo" || node->getCommand() == "wc") && node->getArgument().empty()) {
-            std::string acc;
-            std::string extra;
-            while (std::getline(in, extra)) {
-                if (extra.empty()) { // terminate multiline
-                    node->setArgument("\"" + acc + "\"");
-                    break;
+        InputStream* node = new InputStream(raw);
+        // attach redirections
+        node->setInRedirect(inFile);
+        node->setOutRedirect(outFile, appendOut);
+
+        // For echo/wc, if no explicit arg, provide it from input redirection or heredoc/multiline
+        if (node->getCommand() == "echo" || node->getCommand() == "wc") {
+            if (!node->hasExplicitArgument()) {
+                if (!inFile.empty()) {
+                    std::ifstream f(inFile);
+                    if (!f.is_open()) {
+                        std::cerr << "\nError code 5 - Could not open file: " << inFile << std::endl;
+                    } else {
+                        std::string line2, acc;
+                        while (std::getline(f, line2)) { if (!acc.empty()) acc += '\n'; acc += line2; }
+                        f.close();
+                        node->setArgument("\"" + acc + "\"");
+                    }
+                } else if (node->getArgument().empty()) {
+                    // heredoc-style: accept lines until blank line or a line that is exactly "EOF"
+                    std::string acc;
+                    std::string extra;
+                    while (std::getline(in, extra)) {
+                        if (extra == "EOF" || extra.empty()) {
+                            node->setArgument("\"" + acc + "\"");
+                            break;
+                        }
+                        if (!acc.empty()) acc += '\n';
+                        acc += extra;
+                    }
                 }
-                if (!acc.empty()) acc += '\n';
-                acc += extra;
             }
         }
-        else if ((node->getCommand() == "echo" || node->getCommand() == "wc") && isTxtFileCandidate(node->getArgument())) {
-            // Replace with FileStream that reads file content
+
+        // For echo/wc with explicit unquoted .txt argument, read file content
+        if ((node->getCommand() == "echo" || node->getCommand() == "wc") && isTxtFileCandidate(node->getArgument())) {
             FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
+            // preserve redirections on new node
+            fnode->setInRedirect(inFile);
+            fnode->setOutRedirect(outFile, appendOut);
             delete node;
             node = fnode;
         }
@@ -136,9 +223,10 @@ void InputStream::parse(const std::string& line) {
     std::string second = nextToken(line, i);
     if (!second.empty() && second[0] == '-') {
         option = second;
-        argument = nextToken(line, i);
+        std::string third = nextToken(line, i);
+        if (!third.empty()) { argument = third; setHasExplicitArgument(true); }
     } else {
-        argument = second;
+        if (!second.empty()) { argument = second; setHasExplicitArgument(true); }
     }
 }
 

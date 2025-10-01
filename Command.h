@@ -161,4 +161,16 @@ private:
 };
 
 
+class RmCommand : public Command {
+public:
+	//Default constructor for rm
+	RmCommand(std::string);
+
+	//Exec method for rm
+	void execute() override;
+private:
+	std::string file;
+};
+
+
 #endif // !COMMAND_H_
