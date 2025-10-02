@@ -1,6 +1,8 @@
 #include "Interface.h"
 #include <fstream>
 #include <iostream>
+#include <sstream>
+#include "Stream.h"
 
 //Constructor for Interface
 Interface::Interface() : parser(nullptr), command(nullptr) {
@@ -50,7 +52,19 @@ void Interface::run() {
 				std::streambuf* oldBuf = nullptr;
 				std::ofstream outFile;
 				bool wroteToFile = false;
-				if (!outRedir.empty()) {
+
+				// Determine if there is a next node in the pipeline to feed
+				InputStream* currentNode = Stream::instance()->getFirst();
+				InputStream* nextNode = currentNode ? currentNode->getNext() : nullptr;
+				bool hasNextInPipe = (nextNode != nullptr);
+				std::ostringstream capture;
+				bool capturing = false;
+
+				if (hasNextInPipe && outRedir.empty()) {
+					// Capture stdout of this command to feed into next
+					oldBuf = std::cout.rdbuf(capture.rdbuf());
+					capturing = true;
+				} else if (!outRedir.empty()) {
 					std::ios_base::openmode mode = std::ios::out;
 					mode |= appendOut ? std::ios::app : std::ios::trunc;
 					outFile.open(outRedir, mode);
@@ -67,7 +81,7 @@ void Interface::run() {
 				if (oldBuf) {
 					std::cout.flush();
 					std::cout.rdbuf(oldBuf);
-					outFile.close();
+					if (outFile.is_open()) outFile.close();
 				}
 
 				// If we redirected output to a .txt file, also print its contents after writing
@@ -85,6 +99,29 @@ void Interface::run() {
 							std::cout << std::endl;
 							inFile.close();
 						}
+					}
+				}
+
+				// Pipeline bridging: feed captured output to the next node as its input argument
+				if (hasNextInPipe && capturing) {
+					std::string produced = capture.str();
+					// strip a single trailing newline to avoid accidental extra empty line accumulation
+					if (!produced.empty() && produced.back() == '\n') {
+						produced.pop_back();
+					}
+					std::string quoted = std::string("\"") + produced + "\"";
+
+					std::string nextCmd = nextNode->getCommand();
+					if (nextCmd == "tr") {
+						// Shift tokens so that captured text becomes the first (input) argument
+						std::string a = nextNode->getArgument();   // what
+						std::string b = nextNode->getArgument2(); // with
+						std::string c = nextNode->getArgument3(); // (unused)
+						nextNode->setArgument(quoted);
+						nextNode->setArgument2(a);
+						nextNode->setArgument3(b.empty() ? c : b);
+					} else if (nextCmd == "echo" || nextCmd == "wc" || nextCmd == "head" || nextCmd == "batch") {
+						nextNode->setArgument(quoted);
 					}
 				}
 

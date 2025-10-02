@@ -42,12 +42,22 @@ void Stream::split(const std::string& line) {
     std::string segment;
     for (char c : line) {
         if (c == '|') {
-            if (!segment.empty()) { pipeline.push_back(segment); segment.clear(); }
+            // push trimmed segment if it contains any non-whitespace
+            std::string trimmed = segment;
+            size_t l = 0; while (l < trimmed.size() && std::isspace(static_cast<unsigned char>(trimmed[l]))) ++l;
+            size_t r = trimmed.size(); while (r > l && std::isspace(static_cast<unsigned char>(trimmed[r-1]))) --r;
+            if (r > l) pipeline.push_back(trimmed.substr(l, r - l));
+            segment.clear();
         } else {
             segment += c;
         }
     }
-    if (!segment.empty()) pipeline.push_back(segment);
+    if (!segment.empty()) {
+        std::string trimmed = segment;
+        size_t l = 0; while (l < trimmed.size() && std::isspace(static_cast<unsigned char>(trimmed[l]))) ++l;
+        size_t r = trimmed.size(); while (r > l && std::isspace(static_cast<unsigned char>(trimmed[r-1]))) --r;
+        if (r > l) pipeline.push_back(trimmed.substr(l, r - l));
+    }
 }
 
 static bool isTxtFileCandidate(const std::string& arg) {
@@ -136,7 +146,13 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
         std::string inFile, outFile; bool appendOut = false;
         parseRedirections(raw, inFile, outFile, appendOut);
 
+        // Detect if this segment is NOT the first in the pipeline
+        bool hasPreviousSegment = (stream.first != nullptr);
+
         InputStream* node = new InputStream(raw);
+        // Skip segments that do not produce a command (e.g., whitespace-only)
+        if (node->getCommand().empty()) { delete node; continue; }
+
         // attach redirections
         node->setInRedirect(inFile);
         node->setOutRedirect(outFile, appendOut);
@@ -157,16 +173,19 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
                         node->setArgument("\"" + acc + "\"");
                     }
                 } else if (node->getArgument().empty()) {
-                    // heredoc-style: accept lines until blank line or a line that is exactly "EOF"
-                    std::string acc;
-                    std::string extra;
-                    while (std::getline(in, extra)) {
-                        if (extra == "EOF" || extra.empty()) {
-                            node->setArgument("\"" + acc + "\"");
-                            break;
+                    // Only read interactively for the first pipeline segment. For piped segments,
+                    // we let the previous command's stdout be bridged at execution time.
+                    if (!hasPreviousSegment) {
+                        std::string acc;
+                        std::string extra;
+                        while (std::getline(in, extra)) {
+                            if (extra == "EOF" || extra.empty()) {
+                                node->setArgument("\"" + acc + "\"");
+                                break;
+                            }
+                            if (!acc.empty()) acc += '\n';
+                            acc += extra;
                         }
-                        if (!acc.empty()) acc += '\n';
-                        acc += extra;
                     }
                 }
             }
@@ -217,7 +236,8 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
                         while (std::getline(f, line2)) { if (!acc.empty()) acc += '\n'; acc += line2; }
                         f.close();
                     }
-                } else {
+                } else if (!hasPreviousSegment) {
+                    // Only read interactively if this is the first segment; otherwise pipeline will provide input
                     std::string extra;
                     while (std::getline(in, extra)) {
                         if (extra == "EOF" || extra.empty()) {
@@ -227,7 +247,7 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
                         acc += extra;
                     }
                 }
-                node->setArgument("\"" + acc + "\"");
+                if (!acc.empty()) node->setArgument("\"" + acc + "\"");
                 node->setArgument2(whatTok);
                 node->setArgument3(withTok);
             }

@@ -158,6 +158,7 @@ void WcCommand::countChars() {
 }
 
 
+
 ///Help class definition
 
 HelpCommand::HelpCommand() {
@@ -310,20 +311,30 @@ void BatchCommand::execute() {
 				std::streambuf* oldBuf = nullptr;
 				std::ofstream outFile;
 				bool wroteToFile = false;
-				if (!outRedir.empty()) {
+
+				InputStream* nextNode = node->getNext();
+				bool hasNextInPipe = (nextNode != nullptr);
+				std::ostringstream capture;
+				bool capturing = false;
+
+				if (hasNextInPipe && outRedir.empty()) {
+					oldBuf = std::cout.rdbuf(capture.rdbuf());
+					capturing = true;
+				} else if (!outRedir.empty()) {
 					std::ios_base::openmode mode = std::ios::out;
 					mode |= appendOut ? std::ios::app : std::ios::trunc;
 					outFile.open(outRedir, mode);
 					if (outFile.is_open()) { oldBuf = std::cout.rdbuf(outFile.rdbuf()); wroteToFile = true; }
 				}
+
 				cmd->execute();
+
 				if (oldBuf) {
 					std::cout.flush();
 					std::cout.rdbuf(oldBuf);
-					outFile.close();
+					if (outFile.is_open()) outFile.close();
 				}
 
-				// If we redirected output to a .txt file, print its contents only after appending (to avoid duplicates)
 				if (wroteToFile && appendOut) {
 					if (outRedir.size() >= 4 && outRedir.substr(outRedir.size() - 4) == ".txt") {
 						std::ifstream inFile(outRedir);
@@ -338,6 +349,25 @@ void BatchCommand::execute() {
 							std::cout << std::endl;
 							inFile.close();
 						}
+					}
+				}
+
+				// pipeline forwarding into next node
+				if (hasNextInPipe && capturing) {
+					std::string produced = capture.str();
+					if (!produced.empty() && produced.back() == '\n') produced.pop_back();
+					std::string quoted = std::string("\"") + produced + "\"";
+
+					std::string nextCmd = nextNode->getCommand();
+					if (nextCmd == "tr") {
+						std::string a = nextNode->getArgument();
+						std::string b = nextNode->getArgument2();
+						std::string c = nextNode->getArgument3();
+						nextNode->setArgument(quoted);
+						nextNode->setArgument2(a);
+						nextNode->setArgument3(b.empty() ? c : b);
+					} else if (nextCmd == "echo" || nextCmd == "wc" || nextCmd == "head" || nextCmd == "batch") {
+						nextNode->setArgument(quoted);
 					}
 				}
 
