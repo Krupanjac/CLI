@@ -193,5 +193,14 @@ private:
 	int n;
 };
 
+// batch command: execute each line as a command line
+class BatchCommand : public Command {
+public:
+	explicit BatchCommand(std::string inputText);
+	void execute() override;
+private:
+	std::string input;
+};
+
 
 #endif // !COMMAND_H_

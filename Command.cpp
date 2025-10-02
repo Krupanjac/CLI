@@ -4,7 +4,10 @@
 #include <fstream>
 #include <ctime>
 #include <iomanip>
+#include <sstream>
 #include "Command.h"
+#include "Stream.h"
+#include "CommandFactory.h"
 
 //Command class definition
 Command::Command(std::string& comm, std::string& opt, std::string& arg, PSIGN& p) : command(comm), option(opt), argument(arg), prompt(p) {
@@ -155,7 +158,7 @@ void WcCommand::countChars() {
 }
 
 
-//Help class definition
+///Help class definition
 
 HelpCommand::HelpCommand() {
 	// execute() removed from constructor
@@ -191,7 +194,7 @@ void TruncateCommand::execute() {
 }
 
 
-//RmCommand class definition
+///RmCommand class definition
 RmCommand::RmCommand(std::string filename) : file(filename) {
 
 }
@@ -261,4 +264,89 @@ void HeadCommand::execute() {
 	}
 	// If fewer than n lines exist, still end with newline
 	if (printed < n) std::cout << std::endl;
+}
+
+// BatchCommand implementation
+BatchCommand::BatchCommand(std::string inputText) : input(std::move(inputText)) {}
+
+void BatchCommand::execute() {
+	std::string all = unquote(input);
+	std::istringstream iss(all);
+	std::string rawLine;
+	PSIGN p = '$';
+	CommandFactory factory;
+	while (std::getline(iss, rawLine)) {
+		if (rawLine.empty()) continue;
+		// Parse this line into the singleton Stream using operator>>
+		Stream* s = Stream::instance();
+		s->clear();
+		std::istringstream one(rawLine);
+		one >> *s;
+
+		// Execute all nodes parsed from the line (to support pipelines or multiple segments if any)
+		while (s->getFirst()) {
+			InputStream* node = s->getFirst();
+			std::string comm = node->getCommand();
+			std::string arg = node->getArgument();
+			std::string opt = node->getOption();
+			std::string inRedir = node->getInRedirect();
+			std::string outRedir = node->getOutRedirect();
+			bool appendOut = node->isAppendOut();
+			bool hasExplicitArg = node->hasExplicitArgument();
+
+			if (!inRedir.empty()) {
+				bool definesInput = (comm == "echo" || comm == "wc" || comm == "head" || comm == "batch");
+				if (!definesInput || hasExplicitArg) {
+					factory.handleCommand(SYNTAX_ERROR, comm, opt, arg);
+					// remove the node and continue
+					s->setFirst(node->getNext());
+					delete node;
+					continue;
+				}
+			}
+
+			Command* cmd = factory.createCommand(comm, opt, arg, p);
+			if (cmd) {
+				std::streambuf* oldBuf = nullptr;
+				std::ofstream outFile;
+				bool wroteToFile = false;
+				if (!outRedir.empty()) {
+					std::ios_base::openmode mode = std::ios::out;
+					mode |= appendOut ? std::ios::app : std::ios::trunc;
+					outFile.open(outRedir, mode);
+					if (outFile.is_open()) { oldBuf = std::cout.rdbuf(outFile.rdbuf()); wroteToFile = true; }
+				}
+				cmd->execute();
+				if (oldBuf) {
+					std::cout.flush();
+					std::cout.rdbuf(oldBuf);
+					outFile.close();
+				}
+
+				// If we redirected output to a .txt file, print its contents only after appending (to avoid duplicates)
+				if (wroteToFile && appendOut) {
+					if (outRedir.size() >= 4 && outRedir.substr(outRedir.size() - 4) == ".txt") {
+						std::ifstream inFile(outRedir);
+						if (inFile.is_open()) {
+							std::string line;
+							bool first = true;
+							while (std::getline(inFile, line)) {
+								if (!first) std::cout << '\n';
+								std::cout << line;
+								first = false;
+							}
+							std::cout << std::endl;
+							inFile.close();
+						}
+					}
+				}
+
+				delete cmd;
+			}
+
+			// pop node
+			s->setFirst(node->getNext());
+			delete node;
+		}
+	}
 }

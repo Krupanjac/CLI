@@ -143,8 +143,8 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
 
         const std::string cmd = node->getCommand();
 
-        // For echo/wc/head, if no explicit arg, provide it from input redirection or heredoc/multiline
-        if (cmd == "echo" || cmd == "wc" || cmd == "head") {
+        // For echo/wc/head/batch, if no explicit arg, provide it from input redirection or heredoc/multiline
+        if (cmd == "echo" || cmd == "wc" || cmd == "head" || cmd == "batch") {
             if (!node->hasExplicitArgument()) {
                 if (!inFile.empty()) {
                     std::ifstream f(inFile);
@@ -235,6 +235,15 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
 
         // For head: load file content when first arg is .txt
         if (cmd == "head" && isTxtFileCandidate(node->getArgument())) {
+            FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
+            fnode->setInRedirect(inFile);
+            fnode->setOutRedirect(outFile, appendOut);
+            delete node;
+            node = fnode;
+        }
+
+        // For batch: load file content when first arg is .txt
+        if (cmd == "batch" && isTxtFileCandidate(node->getArgument())) {
             FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
             fnode->setInRedirect(inFile);
             fnode->setOutRedirect(outFile, appendOut);

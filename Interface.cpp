@@ -36,9 +36,9 @@ void Interface::run() {
 			bool appendOut = parser->parseAppendOut();
 			bool hasExplicitArg = parser->parseHasExplicitArgument();
 
-			// Input redirection rule: only for echo/wc/head when they don't already have an explicit argument
+			// Input redirection rule: only for echo/wc/head/batch when they don't already have an explicit argument
 			if (!inRedir.empty()) {
-				bool definesInput = (comm == "echo" || comm == "wc" || comm == "head");
+				bool definesInput = (comm == "echo" || comm == "wc" || comm == "head" || comm == "batch");
 				if (!definesInput || hasExplicitArg) {
 					factory.handleCommand(SYNTAX_ERROR, comm, opt, arg);
 					continue; // skip execution

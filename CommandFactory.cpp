@@ -89,7 +89,7 @@ ErrorCode CommandFactory::validatePromptCommand(const std::string& command, cons
 		return INVALID_ARGUMENT;
 	}
 
-	// Support both: prompt $  and  prompt \"$\"
+	// Support both: prompt $  and  prompt \"$\"'
 	if (argument.size() >= 2 && argument.front() == '"' && argument.back() == '"') {
 		std::string inner = argument.substr(1, argument.size() - 2);
 		if (inner.size() == 1) {
@@ -258,7 +258,6 @@ ErrorCode CommandFactory::validateTrCommand(const std::string& command, const st
 	return SUCCESS;
 }
 
-
 // head: option must be -n<digits up to 5>, argument must be quoted text (or loaded from file)
 ErrorCode CommandFactory::validateHeadCommand(const std::string& command, const std::string& option, const std::string& argument) {
 	if (option.size() < 2 || option[0] != '-') {
@@ -281,6 +280,19 @@ ErrorCode CommandFactory::validateHeadCommand(const std::string& command, const 
 		}
 	}
 	// argument must be quoted text
+	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
+	return SUCCESS;
+}
+
+// batch: no options, argument must be quoted text (possibly loaded from file)
+ErrorCode CommandFactory::validateBatchCommand(const std::string& command, const std::string& option, const std::string& argument) {
+	if (!option.empty()) {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
 	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
@@ -383,6 +395,11 @@ Command* CommandFactory::createCommand(const std::string& command, const std::st
 		if (validateHeadCommand(command, option, argument) == SUCCESS) {
 			int n = std::stoi(option.substr(2));
 			return new HeadCommand(argument, n);
+		}
+	}
+	else if (command == "batch") {
+		if (validateBatchCommand(command, option, argument) == SUCCESS) {
+			return new BatchCommand(argument);
 		}
 	}
     else {
