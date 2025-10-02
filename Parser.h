@@ -24,6 +24,8 @@ public:
 
 	//Sends argument to CLI
 	std::string parseArgument();
+	std::string parseArgument2();
+	std::string parseArgument3();
 
 	// Redirection accessors
 	std::string parseInRedirect();
@@ -49,6 +51,14 @@ inline std::string Parser::parseOption() {
 
 inline std::string Parser::parseArgument() {
 	return stream->getFirst()->getArgument();
+}
+
+inline std::string Parser::parseArgument2() {
+	return stream->getFirst()->getArgument2();
+}
+
+inline std::string Parser::parseArgument3() {
+	return stream->getFirst()->getArgument3();
 }
 
 inline std::string Parser::parseInRedirect() {

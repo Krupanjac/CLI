@@ -2,6 +2,8 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include <ctime>
+#include <iomanip>
 #include "Command.h"
 
 //Command class definition
@@ -49,7 +51,14 @@ TimeCommand::TimeCommand() {
 }
 
 void TimeCommand::execute() {
-	std::cout << "Time: " << __TIME__ << std::endl;
+	std::time_t now = std::time(nullptr);
+	std::tm localTm{};
+	#ifdef _WIN32
+		localtime_s(&localTm, &now);
+	#else
+		localtime_r(&now, &localTm);
+	#endif
+	std::cout << "Time: " << std::put_time(&localTm, "%H:%M:%S") << std::endl;
 }
 
 //Date class definition
@@ -110,7 +119,7 @@ void TouchCommand::execute() {
 }
 
 
-//Wc class definition
+ //Wc class definition
 
 WcCommand::WcCommand(std::string arg, std::string opt) : argument(arg), option(opt.empty() ? ' ' : opt[1]) {
 	// execute() removed from constructor
@@ -194,4 +203,32 @@ void RmCommand::execute() {
 	else {
 		std::cout<< file << " deleted successfully!" << std::endl;
 	}
+}
+
+// TrCommand implementation
+TrCommand::TrCommand(std::string inputText, std::string what, std::string with)
+	: input(std::move(inputText)), whatStr(std::move(what)), withStr(std::move(with)) {}
+
+static std::string unquote(const std::string& s) {
+	if (s.size() >= 2 && s.front() == '"' && s.back() == '"') return s.substr(1, s.size() - 2);
+	return s;
+}
+
+void TrCommand::execute() {
+	std::string text = unquote(input);
+	std::string what = unquote(whatStr);
+	std::string with = unquote(withStr);
+
+	if (what.empty()) {
+		std::cout << text << std::endl;
+		return;
+	}
+
+	// Replace all occurrences
+	size_t pos = 0;
+	while ((pos = text.find(what, pos)) != std::string::npos) {
+		text.replace(pos, what.size(), with);
+		pos += with.size();
+	}
+	std::cout << text << std::endl;
 }

@@ -141,8 +141,10 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
         node->setInRedirect(inFile);
         node->setOutRedirect(outFile, appendOut);
 
+        const std::string cmd = node->getCommand();
+
         // For echo/wc, if no explicit arg, provide it from input redirection or heredoc/multiline
-        if (node->getCommand() == "echo" || node->getCommand() == "wc") {
+        if (cmd == "echo" || cmd == "wc") {
             if (!node->hasExplicitArgument()) {
                 if (!inFile.empty()) {
                     std::ifstream f(inFile);
@@ -171,13 +173,29 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
         }
 
         // For echo/wc with explicit unquoted .txt argument, read file content
-        if ((node->getCommand() == "echo" || node->getCommand() == "wc") && isTxtFileCandidate(node->getArgument())) {
+        if ((cmd == "echo" || cmd == "wc") && isTxtFileCandidate(node->getArgument())) {
             FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
             // preserve redirections on new node
             fnode->setInRedirect(inFile);
             fnode->setOutRedirect(outFile, appendOut);
             delete node;
             node = fnode;
+        }
+
+        // For tr: if first argument is an unquoted .txt file, load its content into argument (quoted)
+        if (cmd == "tr" && isTxtFileCandidate(node->getArgument())) {
+            FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
+            // we need to preserve argument2 and argument3 from the original parse
+            // Since FileStream only sets argument, we copy over arg2/arg3 after reading
+            std::string arg2 = node->getArgument2();
+            std::string arg3 = node->getArgument3();
+            fnode->setInRedirect(inFile);
+            fnode->setOutRedirect(outFile, appendOut);
+            delete node;
+            node = fnode;
+            // Restore arg2/arg3
+            node->setArgument2(arg2);
+            node->setArgument3(arg3);
         }
 
         stream.insert(node);
@@ -225,8 +243,18 @@ void InputStream::parse(const std::string& line) {
         option = second;
         std::string third = nextToken(line, i);
         if (!third.empty()) { argument = third; setHasExplicitArgument(true); }
+        // parse possible extra args when an option is used (rare in current commands)
+        std::string fourth = nextToken(line, i);
+        if (!fourth.empty()) argument2 = fourth;
+        std::string fifth = nextToken(line, i);
+        if (!fifth.empty()) argument3 = fifth;
     } else {
         if (!second.empty()) { argument = second; setHasExplicitArgument(true); }
+        // parse possible extra args (for commands like tr)
+        std::string third = nextToken(line, i);
+        if (!third.empty()) argument2 = third;
+        std::string fourth = nextToken(line, i);
+        if (!fourth.empty()) argument3 = fourth;
     }
 }
 

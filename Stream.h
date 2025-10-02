@@ -33,7 +33,7 @@ private:
     InputStream* first;                      // head of linked list
 };
 
-// Single parsed segment (command [option] [argument])
+// Single parsed segment (command [option] [argument [argument2 [argument3]]])
 class InputStream {
 public:
     explicit InputStream(const std::string& line); // parse and populate fields
@@ -45,8 +45,12 @@ public:
     const std::string& getCommand()  const { return command; }
     const std::string& getOption()   const { return option; }
     const std::string& getArgument() const { return argument; }
+    const std::string& getArgument2() const { return argument2; }
+    const std::string& getArgument3() const { return argument3; }
 
     void setArgument(const std::string& a) { argument = a; }
+    void setArgument2(const std::string& a) { argument2 = a; }
+    void setArgument3(const std::string& a) { argument3 = a; }
     void setCommand(const std::string& c) { command = c; }
     void setOption(const std::string& o) { option = o; }
 
@@ -58,7 +62,7 @@ public:
     void setInRedirect(const std::string& in) { inRedirect = in; }
     void setOutRedirect(const std::string& out, bool append) { outRedirect = out; appendOut = append; }
 
-    // Track whether the user provided an explicit argument token
+    // Track whether the user provided an explicit argument token (first argument only)
     bool hasExplicitArgument() const { return explicitArgument; }
     void setHasExplicitArgument(bool v) { explicitArgument = v; }
 
@@ -72,7 +76,9 @@ protected:
 
     std::string command;
     std::string option;
-    std::string argument;
+    std::string argument;   // first argument or input text
+    std::string argument2;  // second argument (e.g., what)
+    std::string argument3;  // third argument (e.g., with)
 
 private:
     InputStream* next = nullptr;

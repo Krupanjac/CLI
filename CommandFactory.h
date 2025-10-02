@@ -36,6 +36,7 @@ private:
 	ErrorCode validateWcCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateTruncateCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateRmCommand(const std::string& command, const std::string& option, const std::string& argument);
+	ErrorCode validateTrCommand(const std::string& command, const std::string& option, const std::string& inputArg, const std::string& whatArg, const std::string& withArg);
 
 
 	//Helper method to validate file for open
@@ -53,6 +54,7 @@ inline CommandFactory::~CommandFactory() {
 }
 
 #endif // !COMMANDFACTORY_H_
+
 
 
 

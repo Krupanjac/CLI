@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include "Stream.h"
 
 
 
@@ -87,8 +88,28 @@ ErrorCode CommandFactory::validatePromptCommand(const std::string& command, cons
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
-	prompt = argument[0];
-	return SUCCESS;
+
+	// Support both: prompt $  and  prompt "$"
+	if (argument.size() >= 2 && argument.front() == '"' && argument.back() == '"') {
+		std::string inner = argument.substr(1, argument.size() - 2);
+		if (inner.size() == 1) {
+			prompt = inner[0];
+			return SUCCESS;
+		}
+		// Quoted but not a single character -> invalid
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
+		return INVALID_ARGUMENT;
+	}
+
+	// Unquoted single character
+	if (argument.size() == 1) {
+		prompt = argument[0];
+		return SUCCESS;
+	}
+
+	// Anything else is invalid
+	handleCommand(INVALID_ARGUMENT, command, option, argument);
+	return INVALID_ARGUMENT;
 }
 
 ErrorCode CommandFactory::validateEchoCommand(const std::string& command, const std::string& option, const std::string& argument) {
@@ -211,6 +232,34 @@ ErrorCode CommandFactory::validateRmCommand(const std::string& command, const st
 }
 
 
+// tr: argument must be quoted input text (parser ensures file -> quoted),
+// what must be quoted, with can be empty or quoted. No options allowed.
+ErrorCode CommandFactory::validateTrCommand(const std::string& command, const std::string& option, const std::string& inputArg, const std::string& whatArg, const std::string& withArg) {
+	if (!option.empty()) {
+		handleCommand(INVALID_OPTION, command, option, inputArg);
+		return INVALID_OPTION;
+	}
+	if (inputArg.empty()) {
+		handleCommand(INVALID_ARGUMENT, command, option, inputArg);
+		return INVALID_ARGUMENT;
+	}
+	if (!(inputArg.size() >= 2 && inputArg.front() == '"' && inputArg.back() == '"')) {
+		// input must be quoted text by the time we validate
+		handleCommand(INVALID_ARGUMENT, command, option, inputArg);
+		return INVALID_ARGUMENT;
+	}
+	if (whatArg.empty() || !(whatArg.size() >= 2 && whatArg.front() == '"' && whatArg.back() == '"')) {
+		handleCommand(INVALID_ARGUMENT, command, option, whatArg);
+		return INVALID_ARGUMENT;
+	}
+	if (!withArg.empty() && !(withArg.size() >= 2 && withArg.front() == '"' && withArg.back() == '"')) {
+		handleCommand(INVALID_ARGUMENT, command, option, withArg);
+		return INVALID_ARGUMENT;
+	}
+	return SUCCESS;
+}
+
+
 bool CommandFactory::validateFileForOpen(const std::string& path, bool requireExist, bool requireTxt, bool forWrite){
 	if(path.empty()) return false;
 	if(requireTxt){
@@ -289,6 +338,19 @@ Command* CommandFactory::createCommand(const std::string& command, const std::st
 	else if (command == "rm") {
 		if (validateRmCommand(command, option, argument) == SUCCESS) {
 			return new RmCommand(argument);
+		}
+	}
+	else if (command == "tr") {
+		// Need access to second and third arguments from the parsed input stream.
+		// We will fetch them by peeking at the current node via Stream singleton.
+		// Since createCommand does not receive them directly, read from the parser's current node via Stream.
+		// This is a small coupling but maintains existing API.
+		InputStream* node = Stream::instance()->getFirst();
+		std::string inputArg = node ? node->getArgument() : std::string();
+		std::string whatArg = node ? node->getArgument2() : std::string();
+		std::string withArg = node ? node->getArgument3() : std::string();
+		if (validateTrCommand(command, option, inputArg, whatArg, withArg) == SUCCESS) {
+			return new TrCommand(inputArg, whatArg, withArg);
 		}
 	}
     else {

@@ -172,5 +172,16 @@ private:
 	std::string file;
 };
 
+// tr command: replace all occurrences of what with with in input text
+class TrCommand : public Command {
+public:
+	TrCommand(std::string inputText, std::string what, std::string with);
+	void execute() override;
+private:
+	std::string input;
+	std::string whatStr;
+	std::string withStr; // may be empty -> removal
+};
+
 
 #endif // !COMMAND_H_
