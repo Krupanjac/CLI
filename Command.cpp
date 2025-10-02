@@ -364,8 +364,11 @@ void BatchCommand::execute() {
 						std::string b = nextNode->getArgument2();
 						std::string c = nextNode->getArgument3();
 						nextNode->setArgument(quoted);
-						nextNode->setArgument2(a);
-						nextNode->setArgument3(b.empty() ? c : b);
+						if (c.empty()) {
+							// two-token case originally: a=what, b=with
+							nextNode->setArgument2(a);
+							nextNode->setArgument3(b);
+						}
 					} else if (nextCmd == "echo" || nextCmd == "wc" || nextCmd == "head" || nextCmd == "batch") {
 						nextNode->setArgument(quoted);
 					}

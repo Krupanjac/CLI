@@ -113,13 +113,17 @@ void Interface::run() {
 
 					std::string nextCmd = nextNode->getCommand();
 					if (nextCmd == "tr") {
-						// Shift tokens so that captured text becomes the first (input) argument
-						std::string a = nextNode->getArgument();   // what
-						std::string b = nextNode->getArgument2(); // with
-						std::string c = nextNode->getArgument3(); // (unused)
+						// Ensure captured text becomes first (input) argument and what/with preserved
+						std::string a = nextNode->getArgument();   // may be input or what
+						std::string b = nextNode->getArgument2(); // may be what or with
+						std::string c = nextNode->getArgument3(); // may be with (if already standardized)
 						nextNode->setArgument(quoted);
-						nextNode->setArgument2(a);
-						nextNode->setArgument3(b.empty() ? c : b);
+						if (c.empty()) {
+							// 2-token case originally: a=what, b=with
+							nextNode->setArgument2(a);
+							nextNode->setArgument3(b);
+						}
+						// else already in (input, what, with) shape; keep arg2/arg3
 					} else if (nextCmd == "echo" || nextCmd == "wc" || nextCmd == "head" || nextCmd == "batch") {
 						nextNode->setArgument(quoted);
 					}
