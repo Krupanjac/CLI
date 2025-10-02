@@ -143,8 +143,8 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
 
         const std::string cmd = node->getCommand();
 
-        // For echo/wc, if no explicit arg, provide it from input redirection or heredoc/multiline
-        if (cmd == "echo" || cmd == "wc") {
+        // For echo/wc/head, if no explicit arg, provide it from input redirection or heredoc/multiline
+        if (cmd == "echo" || cmd == "wc" || cmd == "head") {
             if (!node->hasExplicitArgument()) {
                 if (!inFile.empty()) {
                     std::ifstream f(inFile);
@@ -196,6 +196,50 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
             // Restore arg2/arg3
             node->setArgument2(arg2);
             node->setArgument3(arg3);
+        }
+
+        // For tr: if less than 3 tokens provided, treat provided tokens as what/with and read input
+        if (cmd == "tr") {
+            int tokenCount = 0;
+            if (!node->getArgument().empty()) ++tokenCount;
+            if (!node->getArgument2().empty()) ++tokenCount;
+            if (!node->getArgument3().empty()) ++tokenCount;
+            if (tokenCount == 1 || tokenCount == 2) {
+                std::string whatTok = node->getArgument();
+                std::string withTok = node->getArgument2();
+                std::string acc;
+                if (!inFile.empty()) {
+                    std::ifstream f(inFile);
+                    if (!f.is_open()) {
+                        std::cerr << "\nError code 5 - Could not open file: " << inFile << std::endl;
+                    } else {
+                        std::string line2;
+                        while (std::getline(f, line2)) { if (!acc.empty()) acc += '\n'; acc += line2; }
+                        f.close();
+                    }
+                } else {
+                    std::string extra;
+                    while (std::getline(in, extra)) {
+                        if (extra == "EOF" || extra.empty()) {
+                            break;
+                        }
+                        if (!acc.empty()) acc += '\n';
+                        acc += extra;
+                    }
+                }
+                node->setArgument("\"" + acc + "\"");
+                node->setArgument2(whatTok);
+                node->setArgument3(withTok);
+            }
+        }
+
+        // For head: load file content when first arg is .txt
+        if (cmd == "head" && isTxtFileCandidate(node->getArgument())) {
+            FileStream* fnode = new FileStream(node->getCommand(), node->getOption(), node->getArgument());
+            fnode->setInRedirect(inFile);
+            fnode->setOutRedirect(outFile, appendOut);
+            delete node;
+            node = fnode;
         }
 
         stream.insert(node);

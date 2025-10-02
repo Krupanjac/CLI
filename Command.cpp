@@ -232,3 +232,33 @@ void TrCommand::execute() {
 	}
 	std::cout << text << std::endl;
 }
+
+// HeadCommand implementation
+HeadCommand::HeadCommand(std::string inputText, int nLines)
+	: input(std::move(inputText)), n(nLines) {}
+
+void HeadCommand::execute() {
+	std::string text = unquote(input);
+	if (n <= 0) {
+		std::cout << std::endl;
+		return;
+	}
+	int printed = 0;
+	std::string line;
+	for (size_t i = 0; i <= text.size(); ++i) {
+		if (i == text.size() || text[i] == '\n') {
+			std::cout << line;
+			++printed;
+			if (printed >= n) {
+				std::cout << std::endl; // end with newline
+				return;
+			}
+			std::cout << '\n';
+			line.clear();
+		} else {
+			line += text[i];
+		}
+	}
+	// If fewer than n lines exist, still end with newline
+	if (printed < n) std::cout << std::endl;
+}

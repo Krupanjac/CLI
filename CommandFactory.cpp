@@ -89,7 +89,7 @@ ErrorCode CommandFactory::validatePromptCommand(const std::string& command, cons
 		return INVALID_ARGUMENT;
 	}
 
-	// Support both: prompt $  and  prompt "$"
+	// Support both: prompt $  and  prompt \"$\"
 	if (argument.size() >= 2 && argument.front() == '"' && argument.back() == '"') {
 		std::string inner = argument.substr(1, argument.size() - 2);
 		if (inner.size() == 1) {
@@ -231,7 +231,6 @@ ErrorCode CommandFactory::validateRmCommand(const std::string& command, const st
 	return SUCCESS;
 }
 
-
 // tr: argument must be quoted input text (parser ensures file -> quoted),
 // what must be quoted, with can be empty or quoted. No options allowed.
 ErrorCode CommandFactory::validateTrCommand(const std::string& command, const std::string& option, const std::string& inputArg, const std::string& whatArg, const std::string& withArg) {
@@ -254,6 +253,36 @@ ErrorCode CommandFactory::validateTrCommand(const std::string& command, const st
 	}
 	if (!withArg.empty() && !(withArg.size() >= 2 && withArg.front() == '"' && withArg.back() == '"')) {
 		handleCommand(INVALID_ARGUMENT, command, option, withArg);
+		return INVALID_ARGUMENT;
+	}
+	return SUCCESS;
+}
+
+
+// head: option must be -n<digits up to 5>, argument must be quoted text (or loaded from file)
+ErrorCode CommandFactory::validateHeadCommand(const std::string& command, const std::string& option, const std::string& argument) {
+	if (option.size() < 2 || option[0] != '-') {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
+	if (option.size() < 3 || option[1] != 'n') {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
+	std::string digits = option.substr(2);
+	if (digits.empty() || digits.size() > 5) {
+		handleCommand(INVALID_OPTION, command, option, argument);
+		return INVALID_OPTION;
+	}
+	for (char c : digits) {
+		if (!std::isdigit(static_cast<unsigned char>(c))) {
+			handleCommand(INVALID_OPTION, command, option, argument);
+			return INVALID_OPTION;
+		}
+	}
+	// argument must be quoted text
+	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
+		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
 	return SUCCESS;
@@ -341,16 +370,19 @@ Command* CommandFactory::createCommand(const std::string& command, const std::st
 		}
 	}
 	else if (command == "tr") {
-		// Need access to second and third arguments from the parsed input stream.
-		// We will fetch them by peeking at the current node via Stream singleton.
-		// Since createCommand does not receive them directly, read from the parser's current node via Stream.
-		// This is a small coupling but maintains existing API.
 		InputStream* node = Stream::instance()->getFirst();
 		std::string inputArg = node ? node->getArgument() : std::string();
 		std::string whatArg = node ? node->getArgument2() : std::string();
 		std::string withArg = node ? node->getArgument3() : std::string();
 		if (validateTrCommand(command, option, inputArg, whatArg, withArg) == SUCCESS) {
 			return new TrCommand(inputArg, whatArg, withArg);
+		}
+	}
+	else if (command == "head") {
+		// parse n from option
+		if (validateHeadCommand(command, option, argument) == SUCCESS) {
+			int n = std::stoi(option.substr(2));
+			return new HeadCommand(argument, n);
 		}
 	}
     else {

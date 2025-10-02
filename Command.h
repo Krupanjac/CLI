@@ -183,5 +183,15 @@ private:
 	std::string withStr; // may be empty -> removal
 };
 
+// head command: print first n lines of input text
+class HeadCommand : public Command {
+public:
+	HeadCommand(std::string inputText, int nLines);
+	void execute() override;
+private:
+	std::string input;
+	int n;
+};
+
 
 #endif // !COMMAND_H_
