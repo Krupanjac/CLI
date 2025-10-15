@@ -10,51 +10,50 @@
 //Abstract class for Control elements
 class Command {
 public:
+	// Default constructor
 	Command();
 
-	//Constructor call for Control
-	Command(std::string&, std::string&, std::string&, PSIGN&);
+	// Parameterized constructor
+	Command(std::string& comm, std::string& opt, std::string& arg, PSIGN& p);
 
-	//Destructor call for Control
-	//virtual ~Command();
-
-	//Method for calling exec on command
 	virtual void execute() = 0;
-
-
 
 protected:
 
 	std::string command;
 	std::string argument;
 	std::string option;
-
 	PSIGN prompt;
-
-
 };
+inline Command::Command(std::string& comm, std::string& opt, std::string& arg, PSIGN& p)
+	: command(comm), argument(arg), option(opt), prompt(p) {
+}
+inline Command::Command() : command(""), argument(""), option(""), prompt('$') {
+}
 
 //Prompt command class for user to define beggining of a new command
 class PromptCommand : public Command {
 public:
 
-	//Default constructor for Prompt with arguments 
-	PromptCommand(PSIGN& p);
 
-	//Destructor for Prompt
+	PromptCommand(PSIGN& p);
 	~PromptCommand() = default;
 
-	//Method for calling exec on Prompt
 	void execute() override;
 
 
 };
 
+inline PromptCommand::PromptCommand(PSIGN& p) {
+	prompt = p;
+}
+
+
 //Echo command class for user to define beggining of a new command
 class EchoCommand : public Command {
 public:
 
-	//Default constructor for Echo
+
 	EchoCommand(std::string);
 
 
@@ -64,23 +63,23 @@ private:
 	std::string echoArgument;
 };
 
+inline EchoCommand::EchoCommand(std::string arg) : echoArgument(arg) {
+}
+
 class TimeCommand : public Command {
 public:
 
-	//Default constructor for Time
-	TimeCommand();
 
-	//Exec method for Time
+	TimeCommand() = default;
+
 	void execute() override;
 };
 
 class DateCommand : public Command {
 public:
 
-	//Default constructor for Date
-	DateCommand();
+	DateCommand() = default;
 
-	//Exec method for Date
 	void execute() override;
 };
 
@@ -88,21 +87,28 @@ class ClearCommand : public Command {
 public:
 
 	//Default constructor for Clear
-	ClearCommand();
+	ClearCommand() = default;
 
-	//Exec method for Clear
 	void execute() override;
 };
+
+inline void ClearCommand::execute() {
+	system("cls");
+}
 
 class ExitCommand : public Command {
 public:
 
 	//Default constructor for Exit
-	ExitCommand();
+	ExitCommand() = default;
 
 	//Exec method for Exit
 	void execute() override;
 };
+
+inline void ExitCommand::execute() {
+	exit(0);
+}
 
 class TouchCommand : public Command {
 public:
@@ -119,13 +125,14 @@ private:
 
 };
 
+inline TouchCommand::TouchCommand(std::string arg) : file(arg) {
+}
+
 class WcCommand : public Command {
 public:
 
-	//Default constructor for Wc
 	WcCommand(std::string, std::string);
 
-	//Exec method for Wc
 	void execute() override;
 
 	//Method for counting words
@@ -139,38 +146,41 @@ private:
 	char option;
 };
 
+inline WcCommand::WcCommand(std::string arg, std::string opt) : argument(arg), option(opt.empty() ? ' ' : opt[1]) {
+}
+
 class HelpCommand : public Command {
 public:
 
-	//Default constructor for Help
-	HelpCommand();
-
-	//Exec method for Help
+	HelpCommand() = default;
 	void execute() override;
 };
 
 class TruncateCommand : public Command {
 public:
-	//Default constructor for Truncate
-	TruncateCommand(std::string);
 
-	//Exec method for Truncate
+	TruncateCommand(std::string);
 	void execute() override;
+
 private:
 	std::string file;
 };
+
+inline TruncateCommand::TruncateCommand(std::string filename) : file(filename) {
+}
 
 
 class RmCommand : public Command {
 public:
-	//Default constructor for rm
-	RmCommand(std::string);
 
-	//Exec method for rm
+	RmCommand(std::string);
 	void execute() override;
 private:
 	std::string file;
 };
+
+inline RmCommand::RmCommand(std::string filename) : file(filename) {
+}
 
 // tr command: replace all occurrences of what with with in input text
 class TrCommand : public Command {
@@ -183,6 +193,10 @@ private:
 	std::string withStr; // may be empty -> removal
 };
 
+inline TrCommand::TrCommand(std::string inputText, std::string what, std::string with)
+	: input(std::move(inputText)), whatStr(std::move(what)), withStr(std::move(with)) {
+}
+
 // head command: print first n lines of input text
 class HeadCommand : public Command {
 public:
@@ -192,6 +206,10 @@ private:
 	std::string input;
 	int n;
 };
+inline HeadCommand::HeadCommand(std::string inputText, int nLines)
+	: input(std::move(inputText)), n(nLines) {
+}
+
 
 // batch command: execute each line as a command line
 class BatchCommand : public Command {
@@ -202,5 +220,8 @@ private:
 	std::string input;
 };
 
+inline BatchCommand::BatchCommand(std::string inputText)
+	: input(std::move(inputText)) {
+}
 
 #endif // !COMMAND_H_

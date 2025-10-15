@@ -131,6 +131,7 @@
     <ClInclude Include="CommandFactory.h" />
     <ClInclude Include="Interface.h" />
     <ClInclude Include="Parser.h" />
+    <ClInclude Include="PipelineExecutor.h" />
     <ClInclude Include="Stream.h" />
     <ClInclude Include="Types.h" />
   </ItemGroup>
@@ -139,6 +140,7 @@
     <ClCompile Include="CommandFactory.cpp" />
     <ClCompile Include="Interface.cpp" />
     <ClCompile Include="Parser.cpp" />
+    <ClCompile Include="PipelineExecutor.cpp" />
     <ClCompile Include="Stream.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>

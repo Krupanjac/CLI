@@ -5,32 +5,39 @@
 #include <string>
 #include <vector>
 #include <istream>
+#include <memory>
 
 class InputStream; // forward declaration
 
-// Manager for parsed input segments (singleton)
+// Manager for parsed input segments
 class Stream {
 public:
-    static Stream* instance();
+    Stream();
+    ~Stream() = default;
 
-    void insert(InputStream* node);          // append node to list
-    void split(const std::string& line);     // split raw line into pipeline segments
-
-    void setFirst(InputStream* first);
-    InputStream* getFirst() const;
-
-    void clear();                            // delete all nodes & reset
-
+    // Parsing entry (fills internal nodes from input)
     friend std::istream& operator>>(std::istream& in, Stream& stream);
 
-private:
-    Stream();
-    ~Stream();
-    Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
+    // Pipeline access
+    bool empty() const;
+    InputStream* current();
+    const InputStream* current() const;
+    InputStream* next();
+    const InputStream* next() const;
+    bool advance();
+    void clear();
 
-    std::vector<std::string> pipeline;       // temporary storage for pipeline segments
-    InputStream* first;                      // head of linked list
+    // Internal helpers reused by operator>>
+    void split(const std::string& line);
+
+    // Append a parsed node
+    void insert(InputStream* node);
+
+private:
+    std::vector<std::unique_ptr<InputStream>> nodes;
+    int pos = 0;
+
+    std::vector<std::string> pipeline; // temporary storage for pipeline segments
 };
 
 // Single parsed segment (command [option] [argument [argument2 [argument3]]])
@@ -39,32 +46,29 @@ public:
     explicit InputStream(const std::string& line); // parse and populate fields
     virtual ~InputStream() = default;
 
-    InputStream* getNext() const { return next; }
-    void setNext(InputStream* n) { next = n; }
+    const std::string& getCommand()  const;
+    const std::string& getOption()   const;
+    const std::string& getArgument() const;
+    const std::string& getArgument2() const;
+    const std::string& getArgument3() const;
 
-    const std::string& getCommand()  const { return command; }
-    const std::string& getOption()   const { return option; }
-    const std::string& getArgument() const { return argument; }
-    const std::string& getArgument2() const { return argument2; }
-    const std::string& getArgument3() const { return argument3; }
-
-    void setArgument(const std::string& a) { argument = a; }
-    void setArgument2(const std::string& a) { argument2 = a; }
-    void setArgument3(const std::string& a) { argument3 = a; }
-    void setCommand(const std::string& c) { command = c; }
-    void setOption(const std::string& o) { option = o; }
+    void setArgument(const std::string& a);
+    void setArgument2(const std::string& a);
+    void setArgument3(const std::string& a);
+    void setCommand(const std::string& c);
+    void setOption(const std::string& o);
 
     // Redirection accessors
-    const std::string& getInRedirect() const { return inRedirect; }
-    const std::string& getOutRedirect() const { return outRedirect; }
-    bool isAppendOut() const { return appendOut; }
+    const std::string& getInRedirect() const;
+    const std::string& getOutRedirect() const;
+    bool isAppendOut() const;
 
-    void setInRedirect(const std::string& in) { inRedirect = in; }
-    void setOutRedirect(const std::string& out, bool append) { outRedirect = out; appendOut = append; }
+    void setInRedirect(const std::string& in);
+    void setOutRedirect(const std::string& out, bool append);
 
     // Track whether the user provided an explicit argument token (first argument only)
-    bool hasExplicitArgument() const { return explicitArgument; }
-    void setHasExplicitArgument(bool v) { explicitArgument = v; }
+    bool hasExplicitArgument() const;
+    void setHasExplicitArgument(bool v);
 
 protected:
     InputStream() = default; // for derived classes
@@ -72,7 +76,7 @@ protected:
     void appendArgumentLine(const std::string& line); // used by multiline and file reading
 
     void parse(const std::string& line);              // tokenize input line
-    std::string nextToken(const std::string& line, size_t& i); // helper
+    std::string nextToken(const std::string& line, int& i); // helper
 
     std::string command;
     std::string option;
@@ -81,7 +85,6 @@ protected:
     std::string argument3;  // third argument (e.g., with)
 
 private:
-    InputStream* next = nullptr;
     std::string inRedirect;
     std::string outRedirect;
     bool appendOut = false;
@@ -97,5 +100,38 @@ public:
 
     void readFromFile(const std::string& filePath);
 };
+
+
+// Stream
+inline bool Stream::empty() const { return pos >= nodes.size(); }
+inline InputStream* Stream::current() { return empty() ? nullptr : nodes[pos].get(); }
+inline const InputStream* Stream::current() const { return empty() ? nullptr : nodes[pos].get(); }
+inline InputStream* Stream::next() { return (pos + 1 < nodes.size()) ? nodes[pos + 1].get() : nullptr; }
+inline const InputStream* Stream::next() const { return (pos + 1 < nodes.size()) ? nodes[pos + 1].get() : nullptr; }
+inline bool Stream::advance() { if (empty()) return false; ++pos; return !empty(); }
+inline void Stream::insert(InputStream* node) { nodes.emplace_back(node); }
+
+// InputStream getters/setters
+inline const std::string& InputStream::getCommand() const { return command; }
+inline const std::string& InputStream::getOption() const { return option; }
+inline const std::string& InputStream::getArgument() const { return argument; }
+inline const std::string& InputStream::getArgument2() const { return argument2; }
+inline const std::string& InputStream::getArgument3() const { return argument3; }
+
+inline void InputStream::setArgument(const std::string& a) { argument = a; }
+inline void InputStream::setArgument2(const std::string& a) { argument2 = a; }
+inline void InputStream::setArgument3(const std::string& a) { argument3 = a; }
+inline void InputStream::setCommand(const std::string& c) { command = c; }
+inline void InputStream::setOption(const std::string& o) { option = o; }
+
+inline const std::string& InputStream::getInRedirect() const { return inRedirect; }
+inline const std::string& InputStream::getOutRedirect() const { return outRedirect; }
+inline bool InputStream::isAppendOut() const { return appendOut; }
+
+inline void InputStream::setInRedirect(const std::string& in) { inRedirect = in; }
+inline void InputStream::setOutRedirect(const std::string& out, bool append) { outRedirect = out; appendOut = append; }
+
+inline bool InputStream::hasExplicitArgument() const { return explicitArgument; }
+inline void InputStream::setHasExplicitArgument(bool v) { explicitArgument = v; }
 
 #endif // STREAM_H_

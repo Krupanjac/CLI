@@ -16,18 +16,16 @@ public:
 	CommandFactory();
 	~CommandFactory();
 
-	//Method for creating a command based on Fabric. Static.
-	Command* createCommand(const std::string&,const std::string&,const std::string&, PSIGN &p);
+	// Primary creation API: pass up to three args (unused ones can be empty)
+	Command* createCommand(const std::string&, const std::string&, const std::string&, const std::string&, const std::string&, PSIGN &p);
 
-
-	//Error code handler method
+	// Backward-compatible: routes to the primary overload
+	Command* createCommand(const std::string&, const std::string&, const std::string&, PSIGN &p);
+	
 	void handleCommand(ErrorCode, const std::string&, const std::string&, const std::string&);
-
-	//Print error context method
 	void printErrorContext(const std::string&, const std::string&, const std::string&, const std::string&, ErrorCode);
 
 private:
-	//Validators for each command
 	ErrorCode validatePromptCommand(const std::string& command, const std::string& option, const std::string& argument, PSIGN& prompt);
 	ErrorCode validateEchoCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateSimpleCommand(const std::string& command, const std::string& option, const std::string& argument);
@@ -40,22 +38,38 @@ private:
 	ErrorCode validateHeadCommand(const std::string& command, const std::string& option, const std::string& argument);
 	ErrorCode validateBatchCommand(const std::string& command, const std::string& option, const std::string& argument);
 
-
-	//Helper method to validate file for open
 	bool validateFileForOpen(const std::string&, bool, bool, bool);
+	bool isProperQuoted(const std::string&);
+	bool hasUnterminatedQuote(const std::string&);
 };
 
-inline CommandFactory::CommandFactory() {
+inline CommandFactory::CommandFactory() {}
+inline CommandFactory::~CommandFactory() {}
 
+inline bool CommandFactory::isProperQuoted(const std::string& s) {
+	return (s.size() >= 2 && s.front() == '"' && s.back() == '"');
 }
 
-inline CommandFactory::~CommandFactory() {
-
-
-
+inline bool CommandFactory::hasUnterminatedQuote(const std::string& s) {
+	if (s.empty()) return false;
+	bool starts = s.front() == '"';
+	bool ends = s.back() == '"';
+	return (starts ^ ends); // exactly one quote
 }
 
 #endif // !COMMANDFACTORY_H_
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -7,8 +7,6 @@
 
 
 
-
-
 void CommandFactory::printErrorContext(const std::string& command, const std::string& option, const std::string& argument, const std::string& errorMessage, ErrorCode code) {
 	char uChar = '~';
 	int size = 0;
@@ -57,7 +55,6 @@ std::cerr << underline + errorMessage << std::endl;
 
 
 
-
 void CommandFactory::handleCommand(ErrorCode code, const std::string& command, const std::string& option, const std::string& argument) {
 	std::string errorMessage;
 
@@ -84,7 +81,8 @@ void CommandFactory::handleCommand(ErrorCode code, const std::string& command, c
 }
 
 ErrorCode CommandFactory::validatePromptCommand(const std::string& command, const std::string& option, const std::string& argument, PSIGN& prompt) {
-	if (!option.empty() || argument.empty()) {
+	//std::cout << argument << " " << argument.size() << std::endl;
+	if (!option.empty() || argument.empty()){
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
@@ -123,12 +121,18 @@ ErrorCode CommandFactory::validateEchoCommand(const std::string& command, const 
 		return INVALID_ARGUMENT;
 	}
 
+	// Unterminated quote is a syntax error (e.g., echo "hello\n)
+	if (hasUnterminatedQuote(argument)) {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
+
 	// Only accept a properly quoted string as the final validated argument.
 	// If a .txt filename was provided, the parser replaces it with quoted file contents before validation.
-	bool quoted = argument.size() >= 2 && argument.front() == '"' && argument.back() == '"';
+	bool quoted = isProperQuoted(argument);
 	if (quoted) return SUCCESS;
 
-	// Any other unquoted token (e.g., words like asdsaas, symbols like >, >>, <, <<) is invalid for echo
+	// Any other unquoted token (words like asdsaas, symbols like >, >>, <, <<) is invalid for echo
 	handleCommand(INVALID_ARGUMENT, command, option, argument);
 	return INVALID_ARGUMENT;
 }
@@ -180,9 +184,15 @@ ErrorCode CommandFactory::validateWcCommand(const std::string& command, const st
 		return INVALID_OPTION;
 	}
 
+	// Unterminated quote is a syntax error
+	if (hasUnterminatedQuote(argument)) {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
+
 	// argument validation: wc expects its final evaluated argument to be quoted text
 	// If a .txt filename was provided or input was redirected, the parser replaces it with quoted text.
-	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
+	if (argument.empty() || !isProperQuoted(argument)) {
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
@@ -238,20 +248,25 @@ ErrorCode CommandFactory::validateTrCommand(const std::string& command, const st
 		handleCommand(INVALID_OPTION, command, option, inputArg);
 		return INVALID_OPTION;
 	}
+	// syntax errors on any arg
+	if (hasUnterminatedQuote(inputArg) || hasUnterminatedQuote(whatArg) || hasUnterminatedQuote(withArg)) {
+		handleCommand(SYNTAX_ERROR, command, option, inputArg);
+		return SYNTAX_ERROR;
+	}
 	if (inputArg.empty()) {
 		handleCommand(INVALID_ARGUMENT, command, option, inputArg);
 		return INVALID_ARGUMENT;
 	}
-	if (!(inputArg.size() >= 2 && inputArg.front() == '"' && inputArg.back() == '"')) {
+	if (!isProperQuoted(inputArg)) {
 		// input must be quoted text by the time we validate
 		handleCommand(INVALID_ARGUMENT, command, option, inputArg);
 		return INVALID_ARGUMENT;
 	}
-	if (whatArg.empty() || !(whatArg.size() >= 2 && whatArg.front() == '"' && whatArg.back() == '"')) {
+	if (whatArg.empty() || !isProperQuoted(whatArg)) {
 		handleCommand(INVALID_ARGUMENT, command, option, whatArg);
 		return INVALID_ARGUMENT;
 	}
-	if (!withArg.empty() && !(withArg.size() >= 2 && withArg.front() == '"' && withArg.back() == '"')) {
+	if (!withArg.empty() && !isProperQuoted(withArg)) {
 		handleCommand(INVALID_ARGUMENT, command, option, withArg);
 		return INVALID_ARGUMENT;
 	}
@@ -279,8 +294,13 @@ ErrorCode CommandFactory::validateHeadCommand(const std::string& command, const 
 			return INVALID_OPTION;
 		}
 	}
+	// Unterminated quote is a syntax error
+	if (hasUnterminatedQuote(argument)) {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
 	// argument must be quoted text
-	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
+	if (argument.empty() || !isProperQuoted(argument)) {
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
@@ -293,7 +313,12 @@ ErrorCode CommandFactory::validateBatchCommand(const std::string& command, const
 		handleCommand(INVALID_OPTION, command, option, argument);
 		return INVALID_OPTION;
 	}
-	if (argument.empty() || argument.front() != '"' || argument.back() != '"') {
+	// Unterminated quote is a syntax error
+	if (hasUnterminatedQuote(argument)) {
+		handleCommand(SYNTAX_ERROR, command, option, argument);
+		return SYNTAX_ERROR;
+	}
+	if (argument.empty() || !isProperQuoted(argument)) {
 		handleCommand(INVALID_ARGUMENT, command, option, argument);
 		return INVALID_ARGUMENT;
 	}
@@ -321,89 +346,71 @@ bool CommandFactory::validateFileForOpen(const std::string& path, bool requireEx
 }
 
 
-
+Command* CommandFactory::createCommand(const std::string& command, const std::string& option, const std::string& arg1, const std::string& arg2, const std::string& arg3, PSIGN& prompt) {
+	if (command == "prompt") {
+		if (validatePromptCommand(command, option, arg1, prompt) == SUCCESS) return nullptr;
+		return nullptr;
+	}
+	if (command == "echo") {
+		if (validateEchoCommand(command, option, arg1) == SUCCESS) return new EchoCommand(arg1);
+		return nullptr;
+	}
+	if (command == "time") {
+		if (validateSimpleCommand(command, option, arg1) == SUCCESS) return new TimeCommand();
+		return nullptr;
+	}
+	if (command == "date") {
+		if (validateSimpleCommand(command, option, arg1) == SUCCESS) return new DateCommand();
+		return nullptr;
+	}
+	if (command == "clear") {
+		if (validateSimpleCommand(command, option, arg1) == SUCCESS) return new ClearCommand();
+		return nullptr;
+	}
+	if (command == "touch") {
+		if (validateTouchCommand(command, option, arg1) == SUCCESS) return new TouchCommand(arg1);
+		return nullptr;
+	}
+	if (command == "wc") {
+		if (validateWcCommand(command, option, arg1) == SUCCESS) return new WcCommand(arg1, option);
+		return nullptr;
+	}
+	if (command == "exit") {
+		if (validateSimpleCommand(command, option, arg1) == SUCCESS) return new ExitCommand();
+		return nullptr;
+	}
+	if (command == "help") {
+		if (validateSimpleCommand(command, option, arg1) == SUCCESS) return new HelpCommand();
+		return nullptr;
+	}
+	if (command == "truncate") {
+		if (validateTruncateCommand(command, option, arg1) == SUCCESS) return new TruncateCommand(arg1);
+		return nullptr;
+	}
+	if (command == "rm") {
+		if (validateRmCommand(command, option, arg1) == SUCCESS) return new RmCommand(arg1);
+		return nullptr;
+	}
+	if (command == "tr") {
+		if (validateTrCommand(command, option, arg1, arg2, arg3) == SUCCESS) return new TrCommand(arg1, arg2, arg3);
+		return nullptr;
+	}
+	if (command == "head") {
+		if (validateHeadCommand(command, option, arg1) == SUCCESS) {
+			int n = std::stoi(option.substr(2));
+			return new HeadCommand(arg1, n);
+		}
+		return nullptr;
+	}
+	if (command == "batch") {
+		if (validateBatchCommand(command, option, arg1) == SUCCESS) return new BatchCommand(arg1);
+		return nullptr;
+	}
+	// Unknown
+	handleCommand(UNKNOWN_COMMAND, command, option, arg1);
+	return nullptr;
+}
 
 Command* CommandFactory::createCommand(const std::string& command, const std::string& option, const std::string& argument, PSIGN& prompt) {
-    if (command == "prompt") {
-        if (validatePromptCommand(command, option, argument, prompt) == SUCCESS) {
-            return nullptr;
-        }
-    }
-    else if (command == "echo") {
-        if (validateEchoCommand(command, option, argument) == SUCCESS) {
-            return new EchoCommand(argument);
-        }
-    }
-    else if (command == "time") {
-        if (validateSimpleCommand(command, option, argument) == SUCCESS) {
-            return new TimeCommand();
-        }
-    }
-    else if (command == "date") {
-        if (validateSimpleCommand(command, option, argument) == SUCCESS) {
-            return new DateCommand();
-        }
-    }
-    else if (command == "clear") {
-        if (validateSimpleCommand(command, option, argument) == SUCCESS) {
-            return new ClearCommand();
-        }
-    }
-    else if (command == "touch") {
-        if (validateTouchCommand(command, option, argument) == SUCCESS) {
-            return new TouchCommand(argument);
-        }
-    }
-    else if (command == "wc") {
-        if (validateWcCommand(command, option, argument) == SUCCESS) {
-            return new WcCommand(argument, option);
-        }
-    }
-    else if (command == "exit") {
-        if (validateSimpleCommand(command, option, argument) == SUCCESS) {
-            return new ExitCommand();
-        }
-    }
-
-	else if (command == "help") {
-		if (validateSimpleCommand(command, option, argument) == SUCCESS) {
-			return new HelpCommand();
-		}
-	}
-
-	else if (command == "truncate") {
-		if (validateTruncateCommand(command, option, argument) == SUCCESS) {
-			return new TruncateCommand(argument);
-		}
-	}
-	else if (command == "rm") {
-		if (validateRmCommand(command, option, argument) == SUCCESS) {
-			return new RmCommand(argument);
-		}
-	}
-	else if (command == "tr") {
-		InputStream* node = Stream::instance()->getFirst();
-		std::string inputArg = node ? node->getArgument() : std::string();
-		std::string whatArg = node ? node->getArgument2() : std::string();
-		std::string withArg = node ? node->getArgument3() : std::string();
-		if (validateTrCommand(command, option, inputArg, whatArg, withArg) == SUCCESS) {
-			return new TrCommand(inputArg, whatArg, withArg);
-		}
-	}
-	else if (command == "head") {
-		// parse n from option
-		if (validateHeadCommand(command, option, argument) == SUCCESS) {
-			int n = std::stoi(option.substr(2));
-			return new HeadCommand(argument, n);
-		}
-	}
-	else if (command == "batch") {
-		if (validateBatchCommand(command, option, argument) == SUCCESS) {
-			return new BatchCommand(argument);
-		}
-	}
-    else {
-		handleCommand(UNKNOWN_COMMAND, command, option, argument);
-    }
-    return nullptr;
+	return createCommand(command, option, argument, std::string(), std::string(), prompt);
 }

@@ -9,33 +9,14 @@
 #include "Stream.h"
 #include "CommandFactory.h"
 
-//Command class definition
-Command::Command(std::string& comm, std::string& opt, std::string& arg, PSIGN& p) : command(comm), option(opt), argument(arg), prompt(p) {
-
-}
-
-Command::Command() : command(""), option(""), argument(""), prompt('$') {
-}
-
-
-
 //Prompt class definition
-
-PromptCommand::PromptCommand(PSIGN& p) {
-	prompt = p;
-	// execute() removed from constructor (now called explicitly)
-}
 
 void PromptCommand::execute() {
 	std::cout << prompt << " ";
 }
 
 
-///Echo class definition
-
-EchoCommand::EchoCommand(std::string arg) : echoArgument(arg) {
-	// execute() removed from constructor (now called explicitly)
-}
+//Echo class definition
 
 
 void EchoCommand::execute() {
@@ -49,56 +30,23 @@ void EchoCommand::execute() {
 
 //Time class definition
 
-TimeCommand::TimeCommand() {
-	// execute() removed from constructor
-}
-
 void TimeCommand::execute() {
 	std::time_t now = std::time(nullptr);
 	std::tm localTm{};
-	#ifdef _WIN32
-		localtime_s(&localTm, &now);
-	#else
-		localtime_r(&now, &localTm);
-	#endif
+	localtime_s(&localTm, &now);
 	std::cout << "Time: " << std::put_time(&localTm, "%H:%M:%S") << std::endl;
 }
 
 //Date class definition
 
-DateCommand::DateCommand() {
-	// execute() removed from constructor
-}
-
 void DateCommand::execute() {
-	std::cout << "Date: " << __DATE__ << std::endl;
-}
-
-//Clear class definition
-
-ClearCommand::ClearCommand() {
-	// execute() removed from constructor
-}
-
-void ClearCommand::execute() {
-	system("cls");
-}
-
-//Exit class definition
-
-ExitCommand::ExitCommand() {
-	// execute() removed from constructor
-}
-
-void ExitCommand::execute() {
-	exit(0);
+	time_t now = time(0);
+	tm localTm{};
+	localtime_s(&localTm, &now);
+	std::cout << "Date: " << std::put_time(&localTm, "%d-%m-%Y") << std::endl;
 }
 
 //Touch class definition
-
-TouchCommand::TouchCommand(std::string arg) : file(arg) {
-	// execute() removed from constructor
-}
 
 void TouchCommand::execute() {
 	try {
@@ -123,10 +71,6 @@ void TouchCommand::execute() {
 
 
  //Wc class definition
-
-WcCommand::WcCommand(std::string arg, std::string opt) : argument(arg), option(opt.empty() ? ' ' : opt[1]) {
-	// execute() removed from constructor
-}
 
 void WcCommand::execute() {
 	if (option == 'w') countWords();
@@ -161,10 +105,6 @@ void WcCommand::countChars() {
 
 ///Help class definition
 
-HelpCommand::HelpCommand() {
-	// execute() removed from constructor
-}
-
 void HelpCommand::execute() {
 	std::cout << std::endl;
 	std::cout << "time - prints the current time" << std::endl;
@@ -177,16 +117,17 @@ void HelpCommand::execute() {
 	std::cout << "wc [-opt] [argument] - prints the word or character count" << std::endl;
 	std::cout << "truncate [argument] - truncates the file to zero length" << std::endl;
 	std::cout << "rm [argument] - deletes the file" << std::endl;
+	std::cout << "tr [argument] [what] [with] - replace substrings in input" << std::endl;
+	std::cout << "head -n<number> [argument] - prints the first N lines" << std::endl;
+	std::cout << "batch [argument] - executes each line as a command" << std::endl;
 
 	std::cout << std::endl << "[argument] - a single word, a quoted string or filename" << std::endl;
 	std::cout << "[-opt] - a single character option." << std::endl;
 
 }
 
-/*Truncate class definition*/
-TruncateCommand::TruncateCommand(std::string filename) :file(filename) {
+//Truncate class definition
 
-}
 
 void TruncateCommand::execute() {
 	std::ofstream ofs;
@@ -196,9 +137,6 @@ void TruncateCommand::execute() {
 
 
 ///RmCommand class definition
-RmCommand::RmCommand(std::string filename) : file(filename) {
-
-}
 
 void RmCommand::execute() {
 	if (std::remove(file.c_str()) != 0) {
@@ -209,14 +147,12 @@ void RmCommand::execute() {
 	}
 }
 
-// TrCommand implementation
-TrCommand::TrCommand(std::string inputText, std::string what, std::string with)
-	: input(std::move(inputText)), whatStr(std::move(what)), withStr(std::move(with)) {}
-
+// Utility function to remove surrounding quotes from a string if present
 static std::string unquote(const std::string& s) {
 	if (s.size() >= 2 && s.front() == '"' && s.back() == '"') return s.substr(1, s.size() - 2);
 	return s;
 }
+// TrCommand implementation
 
 void TrCommand::execute() {
 	std::string text = unquote(input);
@@ -229,17 +165,15 @@ void TrCommand::execute() {
 	}
 
 	// Replace all occurrences
-	size_t pos = 0;
-	while ((pos = text.find(what, pos)) != std::string::npos) {
-		text.replace(pos, what.size(), with);
-		pos += with.size();
+	int pos = 0;
+	while ((pos = static_cast<int>(text.find(what, pos))) != std::string::npos) {
+		text.replace(pos,what.size(), with);
+		pos += static_cast<int>(with.size());
 	}
 	std::cout << text << std::endl;
 }
 
 // HeadCommand implementation
-HeadCommand::HeadCommand(std::string inputText, int nLines)
-	: input(std::move(inputText)), n(nLines) {}
 
 void HeadCommand::execute() {
 	std::string text = unquote(input);
@@ -249,7 +183,7 @@ void HeadCommand::execute() {
 	}
 	int printed = 0;
 	std::string line;
-	for (size_t i = 0; i <= text.size(); ++i) {
+	for (int i = 0; i <= text.size(); ++i) {
 		if (i == text.size() || text[i] == '\n') {
 			std::cout << line;
 			++printed;
@@ -268,7 +202,6 @@ void HeadCommand::execute() {
 }
 
 // BatchCommand implementation
-BatchCommand::BatchCommand(std::string inputText) : input(std::move(inputText)) {}
 
 void BatchCommand::execute() {
 	std::string all = unquote(input);
@@ -278,15 +211,15 @@ void BatchCommand::execute() {
 	CommandFactory factory;
 	while (std::getline(iss, rawLine)) {
 		if (rawLine.empty()) continue;
-		// Parse this line into the singleton Stream using operator>>
-		Stream* s = Stream::instance();
-		s->clear();
+		// Parse this line into a local Stream using operator>>
+		Stream s;
+		s.clear();
 		std::istringstream one(rawLine);
-		one >> *s;
+		one >> s;
 
 		// Execute all nodes parsed from the line (to support pipelines or multiple segments if any)
-		while (s->getFirst()) {
-			InputStream* node = s->getFirst();
+		while (!s.empty()) {
+			InputStream* node = s.current();
 			std::string comm = node->getCommand();
 			std::string arg = node->getArgument();
 			std::string opt = node->getOption();
@@ -299,20 +232,23 @@ void BatchCommand::execute() {
 				bool definesInput = (comm == "echo" || comm == "wc" || comm == "head" || comm == "batch");
 				if (!definesInput || hasExplicitArg) {
 					factory.handleCommand(SYNTAX_ERROR, comm, opt, arg);
-					// remove the node and continue
-					s->setFirst(node->getNext());
-					delete node;
+					s.advance();
 					continue;
 				}
 			}
 
-			Command* cmd = factory.createCommand(comm, opt, arg, p);
+			Command* cmd = nullptr;
+			if (comm == "tr") {
+				cmd = factory.createCommand(comm, opt, arg, node->getArgument2(), node->getArgument3(), p);
+			} else {
+				cmd = factory.createCommand(comm, opt, arg, p);
+			}
 			if (cmd) {
 				std::streambuf* oldBuf = nullptr;
 				std::ofstream outFile;
 				bool wroteToFile = false;
 
-				InputStream* nextNode = node->getNext();
+				InputStream* nextNode = s.next();
 				bool hasNextInPipe = (nextNode != nullptr);
 				std::ostringstream capture;
 				bool capturing = false;
@@ -365,7 +301,6 @@ void BatchCommand::execute() {
 						std::string c = nextNode->getArgument3();
 						nextNode->setArgument(quoted);
 						if (c.empty()) {
-							// two-token case originally: a=what, b=with
 							nextNode->setArgument2(a);
 							nextNode->setArgument3(b);
 						}
@@ -377,9 +312,7 @@ void BatchCommand::execute() {
 				delete cmd;
 			}
 
-			// pop node
-			s->setFirst(node->getNext());
-			delete node;
+			s.advance();
 		}
 	}
 }

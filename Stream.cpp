@@ -7,33 +7,11 @@
 #include "Stream.h"
 
 // ---------------- Stream (manager) ----------------
-Stream* Stream::instance() {
-    static Stream s;
-    return &s;
-}
-
-Stream::Stream() : first(nullptr) {}
-Stream::~Stream() { clear(); }
-
-void Stream::insert(InputStream* node) {
-    if (!node) return;
-    if (!first) { first = node; return; }
-    InputStream* cur = first;
-    while (cur->getNext()) cur = cur->getNext();
-    cur->setNext(node);
-}
-
-void Stream::setFirst(InputStream* f) { first = f; }
-InputStream* Stream::getFirst() const { return first; }
+Stream::Stream() = default;
 
 void Stream::clear() {
-    InputStream* cur = first;
-    while (cur) {
-        InputStream* nxt = cur->getNext();
-        delete cur;
-        cur = nxt;
-    }
-    first = nullptr;
+    nodes.clear();
+    pos = 0;
     pipeline.clear();
 }
 
@@ -44,8 +22,8 @@ void Stream::split(const std::string& line) {
         if (c == '|') {
             // push trimmed segment if it contains any non-whitespace
             std::string trimmed = segment;
-            size_t l = 0; while (l < trimmed.size() && std::isspace(static_cast<unsigned char>(trimmed[l]))) ++l;
-            size_t r = trimmed.size(); while (r > l && std::isspace(static_cast<unsigned char>(trimmed[r-1]))) --r;
+            int l = 0; while (l < trimmed.size() && std::isspace(static_cast<unsigned char>(trimmed[l]))) ++l;
+            int r = static_cast<int>(trimmed.size()); while (r > l && std::isspace(static_cast<unsigned char>(trimmed[r-1]))) --r;
             if (r > l) pipeline.push_back(trimmed.substr(l, r - l));
             segment.clear();
         } else {
@@ -54,8 +32,8 @@ void Stream::split(const std::string& line) {
     }
     if (!segment.empty()) {
         std::string trimmed = segment;
-        size_t l = 0; while (l < trimmed.size() && std::isspace(static_cast<unsigned char>(trimmed[l]))) ++l;
-        size_t r = trimmed.size(); while (r > l && std::isspace(static_cast<unsigned char>(trimmed[r-1]))) --r;
+        int l = 0; while (l < trimmed.size() && std::isspace(static_cast<unsigned char>(trimmed[l]))) ++l;
+        int r = static_cast<int>(trimmed.size()); while (r > l && std::isspace(static_cast<unsigned char>(trimmed[r-1]))) --r;
         if (r > l) pipeline.push_back(trimmed.substr(l, r - l));
     }
 }
@@ -68,7 +46,7 @@ static void trimRight(std::string& s) {
     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
 }
 static void trimLeft(std::string& s) {
-    size_t i = 0; while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i; s.erase(0, i);
+    int i = 0; while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i; s.erase(0, i);
 }
 static void trim(std::string& s){ trimRight(s); trimLeft(s);}    
 
@@ -122,7 +100,7 @@ static void parseRedirections(std::string& raw, std::string& inFile, std::string
     }
     trimRight(raw);
 }
-
+// Overload >> to parse a line into Stream's nodes
 std::istream& operator>>(std::istream& in, Stream& stream) {
     // Reset previous parsed list
     stream.clear();
@@ -147,7 +125,7 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
         parseRedirections(raw, inFile, outFile, appendOut);
 
         // Detect if this segment is NOT the first in the pipeline
-        bool hasPreviousSegment = (stream.first != nullptr);
+        bool hasPreviousSegment = !stream.nodes.empty();
 
         InputStream* node = new InputStream(raw);
         // Skip segments that do not produce a command (e.g., whitespace-only)
@@ -285,7 +263,7 @@ void InputStream::appendArgumentLine(const std::string& line) {
     argument += line;
 }
 
-std::string InputStream::nextToken(const std::string& line, size_t& i) {
+std::string InputStream::nextToken(const std::string& line, int& i) {
     while (i < line.size() && std::isspace(static_cast<unsigned char>(line[i]))) ++i;
     if (i >= line.size()) return {};
 
@@ -307,8 +285,9 @@ std::string InputStream::nextToken(const std::string& line, size_t& i) {
 }
 
 void InputStream::parse(const std::string& line) {
-    size_t i = 0;
-    command = nextToken(line, i);
+    int i = 0;
+    std::string firstTok = nextToken(line, i);
+    command = firstTok;
     if (command.empty()) return;
 
     std::string second = nextToken(line, i);
@@ -316,14 +295,12 @@ void InputStream::parse(const std::string& line) {
         option = second;
         std::string third = nextToken(line, i);
         if (!third.empty()) { argument = third; setHasExplicitArgument(true); }
-        // parse possible extra args when an option is used (rare in current commands)
         std::string fourth = nextToken(line, i);
         if (!fourth.empty()) argument2 = fourth;
         std::string fifth = nextToken(line, i);
         if (!fifth.empty()) argument3 = fifth;
     } else {
         if (!second.empty()) { argument = second; setHasExplicitArgument(true); }
-        // parse possible extra args (for commands like tr)
         std::string third = nextToken(line, i);
         if (!third.empty()) argument2 = third;
         std::string fourth = nextToken(line, i);
