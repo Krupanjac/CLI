@@ -166,9 +166,9 @@ void TrCommand::execute() {
 
 	// Replace all occurrences
 	int pos = 0;
-	while ((pos = static_cast<int>(text.find(what, pos))) != std::string::npos) {
-		text.replace(pos,what.size(), with);
-		pos += static_cast<int>(with.size());
+	while ((pos = (int)text.find(what, (size_t)pos)) != (int)std::string::npos) {
+		text.replace((size_t)pos, what.size(), with);
+		pos += (int)with.size();
 	}
 	std::cout << text << std::endl;
 }
@@ -183,8 +183,8 @@ void HeadCommand::execute() {
 	}
 	int printed = 0;
 	std::string line;
-	for (int i = 0; i <= text.size(); ++i) {
-		if (i == text.size() || text[i] == '\n') {
+	for (int i = 0; i <= (int)text.size(); ++i) {
+		if (i == (int)text.size() || text[i] == '\n') {
 			std::cout << line;
 			++printed;
 			if (printed >= n) {
@@ -238,11 +238,7 @@ void BatchCommand::execute() {
 			}
 
 			Command* cmd = nullptr;
-			if (comm == "tr") {
-				cmd = factory.createCommand(comm, opt, arg, node->getArgument2(), node->getArgument3(), p);
-			} else {
-				cmd = factory.createCommand(comm, opt, arg, p);
-			}
+			cmd = factory.createCommand(comm, opt, arg, node->getArgument2(), node->getArgument3(), p);
 			if (cmd) {
 				std::streambuf* oldBuf = nullptr;
 				std::ofstream outFile;

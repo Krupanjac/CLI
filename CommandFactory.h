@@ -18,9 +18,6 @@ public:
 
 	// Primary creation API: pass up to three args (unused ones can be empty)
 	Command* createCommand(const std::string&, const std::string&, const std::string&, const std::string&, const std::string&, PSIGN &p);
-
-	// Backward-compatible: routes to the primary overload
-	Command* createCommand(const std::string&, const std::string&, const std::string&, PSIGN &p);
 	
 	void handleCommand(ErrorCode, const std::string&, const std::string&, const std::string&);
 	void printErrorContext(const std::string&, const std::string&, const std::string&, const std::string&, ErrorCode);
@@ -58,6 +55,30 @@ inline bool CommandFactory::hasUnterminatedQuote(const std::string& s) {
 }
 
 #endif // !COMMANDFACTORY_H_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

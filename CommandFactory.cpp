@@ -17,24 +17,24 @@ void CommandFactory::printErrorContext(const std::string& command, const std::st
 	std::string underline;
 
 	if (code == INVALID_ARGUMENT) {
-		size = command.size() + option.size() + 1;
+		size = static_cast<int>(command.size() + option.size()) + 1;
 
 		underline.append(size, ' ');
 		underline.append(argument.size(), uChar);
 
 	}
 	else if (code == INVALID_OPTION) {
-		size = command.size() + 1;
+		size = static_cast<int>(command.size()) + 1;
 		underline.append(size, ' ');
 		underline.append(option.size(), uChar);
 	}
 	else if (code == UNKNOWN_COMMAND) {
-		size = command.size();
+		size = static_cast<int>(command.size());
 		underline.append(size, uChar);
 	}
 
 	else if (code == SYNTAX_ERROR) {
-		size = command.size() + option.size() + 1;
+		size = static_cast<int>(command.size() + option.size()) + 1;
 		underline.append(size, ' ');
 		underline.append(argument.size(), uChar);
 	}
@@ -409,8 +409,4 @@ Command* CommandFactory::createCommand(const std::string& command, const std::st
 	// Unknown
 	handleCommand(UNKNOWN_COMMAND, command, option, arg1);
 	return nullptr;
-}
-
-Command* CommandFactory::createCommand(const std::string& command, const std::string& option, const std::string& argument, PSIGN& prompt) {
-	return createCommand(command, option, argument, std::string(), std::string(), prompt);
 }

@@ -6,8 +6,7 @@
 
 #include "Stream.h"
 
-// ---------------- Stream (manager) ----------------
-Stream::Stream() = default;
+// Stream (manages multiple InputStream nodes)
 
 void Stream::clear() {
     nodes.clear();
@@ -255,7 +254,7 @@ std::istream& operator>>(std::istream& in, Stream& stream) {
     return in;
 }
 
-// ---------------- InputStream (node) ----------------
+// InputStream (node), parses a single command segment into a command, option, and up to 3 arguments
 InputStream::InputStream(const std::string& line) { parse(line); }
 
 void InputStream::appendArgumentLine(const std::string& line) {

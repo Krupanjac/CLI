@@ -9,10 +9,10 @@
 
 class InputStream; // forward declaration
 
-// Manager for parsed input segments
+// Manager for parsed input segments (nodes), utilizing InputStream
 class Stream {
 public:
-    Stream();
+	Stream() = default;
     ~Stream() = default;
 
     // Parsing entry (fills internal nodes from input)
@@ -51,6 +51,7 @@ public:
     const std::string& getArgument() const;
     const std::string& getArgument2() const;
     const std::string& getArgument3() const;
+
 
     void setArgument(const std::string& a);
     void setArgument2(const std::string& a);
@@ -111,7 +112,7 @@ inline const InputStream* Stream::next() const { return (pos + 1 < nodes.size())
 inline bool Stream::advance() { if (empty()) return false; ++pos; return !empty(); }
 inline void Stream::insert(InputStream* node) { nodes.emplace_back(node); }
 
-// InputStream getters/setters
+
 inline const std::string& InputStream::getCommand() const { return command; }
 inline const std::string& InputStream::getOption() const { return option; }
 inline const std::string& InputStream::getArgument() const { return argument; }
