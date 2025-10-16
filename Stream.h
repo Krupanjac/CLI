@@ -105,10 +105,10 @@ public:
 
 // Stream
 inline bool Stream::empty() const { return pos >= nodes.size(); }
-inline InputStream* Stream::current() { return empty() ? nullptr : nodes[pos].get(); }
 inline const InputStream* Stream::current() const { return empty() ? nullptr : nodes[pos].get(); }
-inline InputStream* Stream::next() { return (pos + 1 < nodes.size()) ? nodes[pos + 1].get() : nullptr; }
+inline InputStream* Stream::current() { return const_cast<InputStream*>(static_cast<const Stream&>(*this).current()); }
 inline const InputStream* Stream::next() const { return (pos + 1 < nodes.size()) ? nodes[pos + 1].get() : nullptr; }
+inline InputStream* Stream::next() { return const_cast<InputStream*>(static_cast<const Stream&>(*this).next()); }
 inline bool Stream::advance() { if (empty()) return false; ++pos; return !empty(); }
 inline void Stream::insert(InputStream* node) { nodes.emplace_back(node); }
 

@@ -36,17 +36,17 @@
 
 ## 6. Command Catalogue (`Command.cpp`)
 - **PromptCommand**: prints current prompt.
-- **EchoCommand**: prints its argument; quoted text is unwrapped, unquoted text is emitted verbatim.
+- **EchoCommand**: requires a quoted argument (or a `.txt` filename that the parser replaces with quoted contents); prints the unwrapped text. Unquoted tokens are rejected by validation.
 - **TimeCommand**/**DateCommand**: print current time (`std::put_time`) and compilation date (`__DATE__`).
 - **ClearCommand**: calls `system("cls")`.
 - **ExitCommand**: `exit(0)`.
-- **TouchCommand**: creates a new file; throws error code 7 if it already exists or 8 if creation fails.
-- **WcCommand**: counts words (`-w`) or characters (default). Both modes strip surrounding quotes before processing.
+- **TouchCommand**: creates a new `.txt` file (argument must not be quoted and must end with `.txt`); throws error code 7 if it already exists or 8 if creation fails.
+- **WcCommand**: counts words (`-w`) or characters (`-c`, default if omitted). Only `-w` or `-c` are accepted; surrounding quotes are stripped before counting.
 - **HelpCommand**: prints usage help.
-- **TruncateCommand**: truncates a file via `std::ofstream(..., std::ios::trunc)`.
-- **RmCommand**: deletes a file with `std::remove`, reporting success or failure.
+- **TruncateCommand**: truncates an existing `.txt` file via `std::ofstream(..., std::ios::trunc)`; the file must already exist.
+- **RmCommand**: deletes an existing `.txt` file with `std::remove`, reporting success or failure.
 - **TrCommand**: replaces all occurrences of quoted `what` with quoted `with` inside quoted `input`.
-- **HeadCommand**: outputs the first `n` lines (taken from option `-n####`) of quoted input.
+- **HeadCommand**: outputs the first `n` lines of quoted input; option must be `-n` followed by up to 5 digits (e.g., `-n10`).
 - **BatchCommand**: splits quoted script text into individual lines, re-parses each line into a `Stream`, and executes them with the same validation/pipeline rules (including nested pipelines and redirections).
 
 ## 7. Validation & Error Reporting (`CommandFactory`)
@@ -54,16 +54,40 @@
 - Errors are reported via `handleCommand`, which prints the offending command line fragment, underlines the issue with `~`, and appends a contextual error message (`Error code 1`–`4`).
 - `createCommand` falls back to `UNKNOWN_COMMAND` when no handler matches.
 
-## 8. Batch Command Deep Dive
+## 8. Error codes overview (where they originate)
+- 1 — Invalid argument (validation failure)
+- 2 — Invalid option (validation failure)
+- 3 — Syntax error (e.g., mixing `<` with explicit args for input-defining commands)
+- 4 — Unknown command (no factory handler)
+- 5 — Could not open file: <path> (input redirection / file argument open failure in parser)
+- 6 — Error reading from file … (read failure in `FileStream`)
+- 7 — File already exists (from `TouchCommand`)
+- 8 — Could not create/open file (from `TouchCommand` creation or output redirection open failure)
+- 10 — Empty input line (from `Stream::operator>>`)
+- 11 — Input exceeds MAX_SIZE (from `Stream::operator>>`)
+  
+Notes:
+- `rm` failure prints a textual message (`Error deleting file: …`) rather than a numeric code.
+- In interactive mode, writing to a `.txt` via `>`/`>>` echoes the file contents back to stdout; inside `batch`, this echo happens only for appends (`>>`).
+
+## 9. Notes and limitations
+- Pipeline splitting is literal on `|` and is not quote-aware; a `|` inside quotes will still split the pipeline.
+- Redirections are only parsed at the end of a segment; only the last occurrence of a given redirection applies. Stderr redirection is not supported.
+- Interactive stdin capture (for `echo`, `wc`, `head`, `batch`, and partial `tr`) occurs only for the first pipeline segment and stops on a blank line or a line equal to `EOF`.
+- Piping forwards captured stdout as a single quoted argument to the next command. Only `tr`, `echo`, `wc`, `head`, and `batch` consume this injected argument.
+- Character counting in `wc -c` includes newline characters present in the input.
+- File-related commands enforce `.txt` extensions; `truncate`/`rm` also require the file to exist.
+
+## 10. Batch Command Deep Dive
 - `BatchCommand::execute` (`Command.cpp`) iterates lines from its quoted script.
 - Each line is parsed with a fresh `Stream` and executed sequentially, using the same pipeline capture and redirection logic as the interactive path.
 - Output redirection inside batch commands respects append/truncate modes and echoes appended `.txt` files back to the console.
 
-## 9. Prompt Customisation (`prompt` command)
+## 11. Prompt Customisation (`prompt` command)
 - Validation accepts a single character, either bare or quoted (`"$"`). Multi-character inputs trigger `INVALID_ARGUMENT`.
 - On success the prompt stored in `Interface::run` is updated for subsequent iterations; no command object is executed.
 
-## 10. Control Flow Recap
+## 12. Control Flow Recap
 1. `main()` constructs `Interface`; `Interface::run` enters the REPL loop.
 2. Prompt displayed via `PromptCommand`.
 3. `Parser` reads input, `Stream` splits pipelines, tokenises, and resolves redirections/file injections.

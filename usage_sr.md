@@ -36,17 +36,17 @@
 
 ## 6. Katalog komandi (`Command.cpp`)
 - **PromptCommand**: ispisuje trenutni prompt.
-- **EchoCommand**: ispisuje argument; tekst u navodnicima se raznavodničava, necitirani tekst se ispisuje doslovno.
+- **EchoCommand**: zahteva citirani argument (ili `.txt` fajl čiji sadržaj parser zamenjuje citiranim tekstom); ispisuje raznavodničeni tekst. Necitirani tokeni se odbijaju prilikom validacije.
 - **TimeCommand**/**DateCommand**: ispis trenutnog vremena (`std::put_time`) i datuma kompilacije (`__DATE__`).
 - **ClearCommand**: poziva `system("cls")`.
 - **ExitCommand**: `exit(0)`.
-- **TouchCommand**: kreira novi fajl; baca grešku 7 ako već postoji ili 8 ako kreiranje ne uspe.
-- **WcCommand**: broji reči (`-w`) ili karaktere (podrazumevano). U oba režima skidaju se navodnici pre obrade.
+- **TouchCommand**: kreira novi `.txt` fajl (argument ne sme biti u navodnicima i mora se završavati na `.txt`); baca grešku 7 ako već postoji ili 8 ako kreiranje ne uspe.
+- **WcCommand**: broji reči (`-w`) ili karaktere (`-c`, podrazumevano ako se izostavi). Prihvataju se samo `-w` ili `-c`; navodnici se skidaju pre brojanja.
 - **HelpCommand**: ispisuje pomoć/korisničko uputstvo.
-- **TruncateCommand**: skraćuje fajl korišćenjem `std::ofstream(..., std::ios::trunc)`.
-- **RmCommand**: briše fajl pomoću `std::remove`, prijavljuje uspeh ili neuspeh.
+- **TruncateCommand**: skraćuje postojeći `.txt` fajl korišćenjem `std::ofstream(..., std::ios::trunc)`; fajl mora već postojati.
+- **RmCommand**: briše postojeći `.txt` fajl pomoću `std::remove`, prijavljuje uspeh ili neuspeh.
 - **TrCommand**: zamenjuje sva pojavljivanja citiranog `what` nizom `with` u citiranom `input` tekstu.
-- **HeadCommand**: ispisuje prvih `n` linija (uzima iz opcije `-n####`) citiranog ulaza.
+- **HeadCommand**: ispisuje prvih `n` linija citiranog ulaza; opcija mora biti `-n` praćena najviše 5 cifara (npr. `-n10`).
 - **BatchCommand**: deli citirani skript na pojedinačne linije, svaku ponovo parsira u `Stream` i izvršava sa istim pravilima validacije/pipeline-a (uključujući ugnježdene pipeline-ove i preusmeravanja).
 
 ## 7. Validacija i prijava grešaka (`CommandFactory`)
@@ -54,16 +54,40 @@
 - Greške prijavljuje `handleCommand`, koji štampa problematični fragment komande, podvlači ga karakterom `~` i dodaje kontekstualnu poruku o grešci (`Error code 1`–`4`).
 - `createCommand` se prebacuje na `UNKNOWN_COMMAND` kada ne postoji odgovarajući obrađivač.
 
-## 8. Detaljno o batch komandi
+## 8. Pregled kodova grešaka (poreklo)
+- 1 — Neispravan argument (greška validacije)
+- 2 — Neispravna opcija (greška validacije)
+- 3 — Sintaksna greška (npr. kombinovanje `<` sa eksplicitnim argumentima za komande koje same obezbeđuju ulaz)
+- 4 — Nepoznata komanda (nema handler-a u fabrici)
+- 5 — Ne može da se otvori fajl: <putanja> (neuspešno otvaranje ulaznog fajla u parseru)
+- 6 — Greška pri čitanju fajla … (`FileStream` neuspeh)
+- 7 — Fajl već postoji (iz `TouchCommand`)
+- 8 — Ne može da se kreira/otvori fajl (iz kreiranja `TouchCommand` ili neuspeh otvaranja izlaza)
+- 10 — Prazan unos (iz `Stream::operator>>`)
+- 11 — Unos premašuje MAX_SIZE (iz `Stream::operator>>`)
+  
+Napomene:
+- Neuspeh `rm` komande ispisuje tekstualnu poruku (`Error deleting file: …`) umesto numeričkog koda.
+- U interaktivnom režimu, upis u `.txt` preko `>`/`>>` echo-vuje sadržaj fajla nazad na stdout; unutar `batch` to echo važi samo za dodavanje (`>>`).
+
+## 9. Napomene i ograničenja
+- Deljenje pipeline-a je doslovno po `|` i ne obraća pažnju na navodnike; `|` unutar navodnika i dalje deli pipeline.
+- Preusmeravanja se parsiraju samo na kraju segmenta; važi samo poslednje pojavljivanje datog preusmeravanja. Preusmeravanje stderr-a nije podržano.
+- Interaktivno čitanje sa stdin (za `echo`, `wc`, `head`, `batch` i delimični `tr`) dešava se samo za prvi segment pipeline-a i zaustavlja se na praznoj liniji ili liniji `EOF`.
+- Cevovod prosleđuje uhvaćen stdout kao jedan citirani argument sledećoj komandi. Samo `tr`, `echo`, `wc`, `head` i `batch` troše ovaj ubrizgani argument.
+- Brojanje karaktera u `wc -c` uključuje znakove novog reda prisutne u ulazu.
+- Komande vezane za fajlove primenjuju `.txt` ekstenzije; `truncate`/`rm` takođe zahtevaju da fajl postoji.
+
+## 10. Detaljno o batch komandi
 - `BatchCommand::execute` (`Command.cpp`) prolazi linije iz svog citiranog skripta.
 - Svaka linija se parsira novim `Stream`-om i izvršava sekvencijalno, koristeći isto hvatanje pipeline izlaza i logiku preusmeravanja kao u interaktivnom režimu.
 - Preusmeravanje izlaza unutar batch komandi poštuje režime dodavanja/prepisivanja i ispisuje `.txt` fajlove nazad na konzolu kada se dodaju.
 
-## 9. Prilagođavanje prompta (komanda `prompt`)
+## 11. Prilagođavanje prompta (komanda `prompt`)
 - Validacija prihvata jedan karakter, ili neokružen navodnicima ili u navodnicima (`"$"`). Više-karakterni unosi izazivaju `INVALID_ARGUMENT`.
 - Pri uspehu, prompt sačuvan u `Interface::run` se ažurira za naredne iteracije; ne kreira se i ne izvršava poseban objekat komande.
 
-## 10. Rekapitulacija toka kontrole
+## 12. Rekapitulacija toka kontrole
 1. `main()` konstruše `Interface`; `Interface::run` ulazi u REPL petlju.
 2. Prompt se prikazuje preko `PromptCommand`.
 3. `Parser` čita ulaz, `Stream` deli pipeline, tokenizuje i rešava preusmeravanja/učitavanja iz fajla.
