@@ -94,4 +94,4 @@ Notes:
 4. `PipelineExecutor` validates each stage, instantiates commands, manages redirection/piping, and executes them.
 5. Outputs and errors surface immediately; prompt reappears until `exit` is invoked.
 
-This walkthrough covers every `.cpp`/`.h` participant so the CLI can be presented step by step in a project demo.
+This walkthrough covers every `.cpp`/`.h` participant so the CLI can be presented.
