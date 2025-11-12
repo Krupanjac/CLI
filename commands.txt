@@ -1,0 +1,4 @@
+touch test.txt
+echo "time: " > test.txt
+time >> test.txt
+stopwatch -go
